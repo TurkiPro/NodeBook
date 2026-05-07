@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nodebook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">node<span>·</span>book</div>
+  <div class="toolbar">
+    <span class="hint">double-click canvas to add · shift+drag to connect</span>
+    <span id="sync-indicator" class="sync-dot sync-dot--idle" title="Not connected"></span>
+    <button class="btn" id="btn-export">Export</button>
+    <button class="btn" id="btn-import">Import</button>
+    <button class="btn primary" id="btn-add">+ Node</button>
+    <button class="btn" id="btn-user" style="display:none"></button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="canvas-wrap" id="canvas-wrap">
+    <svg id="edges"></svg>
+    <div id="canvas"></div>
+    <div class="status" id="status">0 nodes</div>
+  </div>
+
+  <div class="panel hidden" id="panel">
+    <div class="panel-head">
+      <div class="panel-meta">
+        <span class="panel-label">Note</span>
+        <div class="panel-actions">
+          <button class="icon-btn danger" id="btn-delete" title="Delete node">✕</button>
+          <button class="icon-btn" id="btn-close" title="Close panel">→</button>
+        </div>
+      </div>
+      <input type="text" id="title-input" placeholder="Untitled">
+    </div>
+    <textarea id="note-input" placeholder="Write anything..."></textarea>
+  </div>
+</div>
+
+<input type="file" id="file-input" accept=".json" style="display:none">
+<div class="toast" id="toast"></div>
+
+<!-- Auth overlay — populated by auth/ui.js when user is logged out -->
+<div id="auth-root"></div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

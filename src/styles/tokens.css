@@ -1,0 +1,40 @@
+:root {
+  --bg: #0e0e10;
+  --bg-2: #16161a;
+  --bg-3: #1c1c21;
+  --line: #26262d;
+  --line-2: #34343d;
+  --ink: #e8e6e1;
+  --ink-dim: #8a8a93;
+  --ink-faint: #55555c;
+  --accent: #d4a574;
+  --accent-dim: #8a6b48;
+  --node-bg: #1a1a1f;
+  --node-active: #2a2520;
+  --danger: #c75450;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }

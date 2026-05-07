@@ -1,0 +1,12 @@
+export const wrap      = document.getElementById('canvas-wrap');
+export const canvas    = document.getElementById('canvas');
+export const edgesSvg  = document.getElementById('edges');
+export const panel     = document.getElementById('panel');
+export const titleInput = document.getElementById('title-input');
+export const noteInput  = document.getElementById('note-input');
+export const status    = document.getElementById('status');
+export const fileInput = document.getElementById('file-input');
+export const toastEl   = document.getElementById('toast');
+export const syncDot   = document.getElementById('sync-indicator');
+export const btnUser   = document.getElementById('btn-user');
+export const authRoot  = document.getElementById('auth-root');
