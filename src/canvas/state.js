@@ -12,6 +12,9 @@ export const elMap = new Map();
 export let selectedId = null;
 export function setSelectedId(id) { selectedId = id; }
 
+export let multiSelect = new Set();
+export function setMultiSelect(ids) { multiSelect = new Set(ids); }
+
 export let drag = null;
 export function setDrag(d) { drag = d; }
 
@@ -38,7 +41,8 @@ export function getCleanData() {
         x: n.x,
         y: n.y,
         title: n.title,
-        note: n.note
+        note: n.note,
+        color: n.color || ''
       }])
     ),
     edges: state.edges,

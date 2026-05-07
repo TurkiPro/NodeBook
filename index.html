@@ -13,7 +13,7 @@
 <div class="topbar">
   <div class="brand">node<span>·</span>book</div>
   <div class="toolbar">
-    <span class="hint">double-click to add · shift+drag to connect · F to fit</span>
+    <span class="hint">dbl-click to add · shift+drag to connect · ctrl+drag to multi-select · F to fit</span>
     <span class="sync-chip" id="sync-chip" style="display:none">
       <span id="sync-indicator" class="sync-dot"></span>
       <span id="sync-label"></span>
@@ -36,21 +36,41 @@
   <div class="canvas-wrap" id="canvas-wrap">
     <svg id="edges"></svg>
     <div id="canvas"></div>
+    <div id="select-rect" class="select-rect"></div>
     <div class="status" id="status">0 nodes</div>
   </div>
 
   <div class="panel hidden" id="panel">
-    <div class="panel-head">
-      <div class="panel-meta">
-        <span class="panel-label">Note</span>
-        <div class="panel-actions">
-          <button class="icon-btn danger" id="btn-delete" title="Delete node">✕</button>
-          <button class="icon-btn" id="btn-close" title="Close panel">→</button>
+    <div id="panel-single">
+      <div class="panel-head">
+        <div class="panel-meta">
+          <span class="panel-label">Note</span>
+          <div class="panel-actions">
+            <button class="icon-btn danger" id="btn-delete" title="Delete node">&#x2715;</button>
+            <button class="icon-btn" id="btn-close" title="Close panel">&#x2192;</button>
+          </div>
+        </div>
+        <input type="text" id="title-input" placeholder="Untitled">
+        <div class="color-picker" id="color-picker">
+          <button class="color-swatch color-swatch--default" data-color=""      title="Default"></button>
+          <button class="color-swatch color-swatch--amber"   data-color="amber" title="Amber"></button>
+          <button class="color-swatch color-swatch--rose"    data-color="rose"  title="Rose"></button>
+          <button class="color-swatch color-swatch--sage"    data-color="sage"  title="Sage"></button>
+          <button class="color-swatch color-swatch--sky"     data-color="sky"   title="Sky"></button>
+          <button class="color-swatch color-swatch--plum"    data-color="plum"  title="Plum"></button>
+          <button class="color-swatch color-swatch--teal"    data-color="teal"  title="Teal"></button>
         </div>
       </div>
-      <input type="text" id="title-input" placeholder="Untitled">
+      <textarea id="note-input" placeholder="Write anything..."></textarea>
+      <div class="connections-section hidden" id="connections-section">
+        <div class="connections-label">Connected to</div>
+        <div class="connections-list" id="connections-list"></div>
+      </div>
     </div>
-    <textarea id="note-input" placeholder="Write anything..."></textarea>
+    <div class="panel-multi hidden" id="panel-multi">
+      <span id="panel-multi-count" class="panel-multi-count"></span>
+      <button class="btn btn-destructive" id="btn-delete-multi">Delete selected</button>
+    </div>
   </div>
 </div>
 

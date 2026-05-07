@@ -1,10 +1,17 @@
-import { state, drag, setDrag, pan, setPan, connect, setConnect, elMap } from './state.js';
+import { state, drag, setDrag, pan, setPan, connect, setConnect, elMap,
+         multiSelect, setMultiSelect, setSelectedId } from './state.js';
 import { render, screenToWorld, applyTransform, curvePath } from './render.js';
-import { wrap, edgesSvg } from '../dom.js';
-import { addNode, selectNode } from './operations.js';
+import { wrap, edgesSvg, panel } from '../dom.js';
+import { addNode, selectNode, showMultiPanel } from './operations.js';
 import { save } from '../sync/storage.js';
+import { showConfirm } from '../utils/dialog.js';
+
+let rubberBand = null;
+let selectRectEl = null;
 
 export function setupInteractions() {
+  selectRectEl = document.getElementById('select-rect');
+
   wrap.addEventListener('dblclick', onDblClick);
   wrap.addEventListener('mousedown', onMouseDown);
   window.addEventListener('mousemove', onMouseMove);
@@ -27,6 +34,39 @@ function onMouseDown(e) {
     const n  = state.nodes[id];
     const w  = screenToWorld(e.clientX, e.clientY);
 
+    if (e.ctrlKey) {
+      // Toggle node in multi-select
+      const newSet = new Set(multiSelect);
+      if (selectedId) {
+        // Pull current single-selected node into multi-select
+        newSet.add(selectedId);
+        setSelectedId(null);
+        panel.classList.add('hidden');
+      }
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      setMultiSelect(newSet);
+      if (newSet.size > 0) {
+        showMultiPanel(newSet.size);
+      } else {
+        panel.classList.add('hidden');
+      }
+      render();
+      e.preventDefault();
+      return;
+    }
+
+    // Plain click on node — clear multi-select if active
+    if (multiSelect.size > 0) {
+      setMultiSelect(new Set());
+      document.getElementById('panel-multi').classList.add('hidden');
+      document.getElementById('panel-single').classList.remove('hidden');
+      panel.classList.add('hidden');
+    }
+
     if (e.shiftKey || e.altKey) {
       setConnect({ fromId: id, x: e.clientX, y: e.clientY });
       nodeEl.classList.add('connect-source');
@@ -42,14 +82,35 @@ function onMouseDown(e) {
   const edgeHit = e.target.closest('.edge-hit');
   if (edgeHit) {
     const { from, to } = edgeHit.dataset;
-    if (confirm('Delete this connection?')) {
-      state.edges = state.edges.filter(ed => !(ed.from === from && ed.to === to));
-      save();
-      render();
-    }
+    showConfirm({ message: 'Delete this connection?', confirmText: 'Delete' }).then(ok => {
+      if (ok) {
+        state.edges = state.edges.filter(ed => !(ed.from === from && ed.to === to));
+        save();
+        render();
+      }
+    });
     return;
   }
 
+  // Canvas background click
+  if (e.ctrlKey) {
+    // Start rubber-band selection
+    const wr = wrap.getBoundingClientRect();
+    rubberBand = {
+      x0: e.clientX - wr.left,
+      y0: e.clientY - wr.top,
+      x1: e.clientX - wr.left,
+      y1: e.clientY - wr.top
+    };
+    return;
+  }
+
+  // Plain canvas click — clear multi-select and pan
+  if (multiSelect.size > 0) {
+    setMultiSelect(new Set());
+    panel.classList.add('hidden');
+    render();
+  }
   setPan({ sx: e.clientX, sy: e.clientY, tx: state.view.tx, ty: state.view.ty });
   wrap.classList.add('panning');
 }
@@ -70,6 +131,11 @@ function onMouseMove(e) {
     connect.x = e.clientX;
     connect.y = e.clientY;
     drawTempEdge();
+  } else if (rubberBand) {
+    const wr = wrap.getBoundingClientRect();
+    rubberBand.x1 = e.clientX - wr.left;
+    rubberBand.y1 = e.clientY - wr.top;
+    updateSelectRect();
   }
 }
 
@@ -114,6 +180,45 @@ function onMouseUp(e) {
     clearTempEdge();
     render();
   }
+
+  if (rubberBand) {
+    selectRectEl.style.display = 'none';
+    const minX = Math.min(rubberBand.x0, rubberBand.x1);
+    const maxX = Math.max(rubberBand.x0, rubberBand.x1);
+    const minY = Math.min(rubberBand.y0, rubberBand.y1);
+    const maxY = Math.max(rubberBand.y0, rubberBand.y1);
+    const rb = rubberBand;
+    rubberBand = null;
+
+    // Ignore tiny accidental drags
+    if (maxX - minX < 4 && maxY - minY < 4) return;
+
+    const wr = wrap.getBoundingClientRect();
+    const selected = new Set();
+    for (const [id, el] of elMap) {
+      const er = el.getBoundingClientRect();
+      const ex = er.left - wr.left;
+      const ey = er.top  - wr.top;
+      if (ex + er.width >= minX && ex <= maxX && ey + er.height >= minY && ey <= maxY) {
+        selected.add(id);
+      }
+    }
+
+    if (selected.size > 0) {
+      setSelectedId(null);
+      setMultiSelect(selected);
+      showMultiPanel(selected.size);
+      render();
+    }
+  }
+}
+
+function updateSelectRect() {
+  const x = Math.min(rubberBand.x0, rubberBand.x1);
+  const y = Math.min(rubberBand.y0, rubberBand.y1);
+  const w = Math.abs(rubberBand.x1 - rubberBand.x0);
+  const h = Math.abs(rubberBand.y1 - rubberBand.y0);
+  selectRectEl.style.cssText = `display:block;left:${x}px;top:${y}px;width:${w}px;height:${h}px;`;
 }
 
 function drawTempEdge() {

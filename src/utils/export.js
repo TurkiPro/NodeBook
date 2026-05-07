@@ -8,6 +8,16 @@ import { showConfirm } from './dialog.js';
 
 function dateStamp() { return new Date().toISOString().slice(0, 10); }
 
+const NODE_COLORS = {
+  '':     { bg: '#1a1a1f', border: '#34343d' },
+  amber:  { bg: '#261a08', border: '#8a6030' },
+  rose:   { bg: '#261010', border: '#8a3030' },
+  sage:   { bg: '#101e16', border: '#3a7050' },
+  sky:    { bg: '#0e1826', border: '#3a6080' },
+  plum:   { bg: '#19102a', border: '#6a4a8a' },
+  teal:   { bg: '#0e2626', border: '#3a8080' },
+};
+
 function buildExportCanvas() {
   if (elMap.size === 0) return null;
 
@@ -84,9 +94,11 @@ function buildExportCanvas() {
     const w = el.offsetWidth,  h = el.offsetHeight;
     const r = 6;
 
+    const nodeColor = NODE_COLORS[n.color || ''] || NODE_COLORS[''];
+
     // Rounded rectangle
-    ctx.fillStyle   = '#1a1a1f';
-    ctx.strokeStyle = '#34343d';
+    ctx.fillStyle   = nodeColor.bg;
+    ctx.strokeStyle = nodeColor.border;
     ctx.lineWidth   = 1;
     ctx.beginPath();
     ctx.moveTo(x + r, y);

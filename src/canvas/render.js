@@ -1,4 +1,4 @@
-import { state, elMap, selectedId } from './state.js';
+import { state, elMap, selectedId, multiSelect } from './state.js';
 import { canvas, edgesSvg, status, wrap } from '../dom.js';
 
 export function screenToWorld(sx, sy) {
@@ -29,8 +29,13 @@ export function render() {
     const n = state.nodes[id];
     const el = document.createElement('div');
     el.className = 'node';
-    if (id === selectedId) el.classList.add('selected');
+    if (multiSelect.size > 0) {
+      if (multiSelect.has(id)) el.classList.add('multi-selected');
+    } else {
+      if (id === selectedId) el.classList.add('selected');
+    }
     if (n.note && n.note.trim()) el.classList.add('has-note');
+    if (n.color) el.classList.add(`node--${n.color}`);
     el.dataset.id = id;
     el.style.left = n.x + 'px';
     el.style.top  = n.y + 'px';

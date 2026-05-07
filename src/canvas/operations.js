@@ -1,4 +1,4 @@
-import { state, selectedId, setSelectedId, elMap } from './state.js';
+import { state, selectedId, setSelectedId, elMap, multiSelect, setMultiSelect } from './state.js';
 import { render, screenToWorld, applyTransform } from './render.js';
 import { panel, titleInput, noteInput, wrap } from '../dom.js';
 import { generateId } from '../utils/id.js';
@@ -7,7 +7,7 @@ import { showConfirm } from '../utils/dialog.js';
 
 export function addNode(x, y, title) {
   const id = generateId();
-  state.nodes[id] = { id, x: x ?? 100, y: y ?? 100, title: title ?? '', note: '' };
+  state.nodes[id] = { id, x: x ?? 100, y: y ?? 100, title: title ?? '', note: '', color: '' };
   save();
   render();
   selectNode(id);
@@ -26,22 +26,80 @@ export function deleteNode(id) {
   render();
 }
 
+export function deleteMultiple(ids) {
+  for (const id of ids) {
+    delete state.nodes[id];
+    state.edges = state.edges.filter(e => e.from !== id && e.to !== id);
+  }
+  setMultiSelect(new Set());
+  setSelectedId(null);
+  panel.classList.add('hidden');
+  save();
+  render();
+}
+
 export function selectNode(id) {
   setSelectedId(id);
+  setMultiSelect(new Set());
+
   const n = state.nodes[id];
   if (!n) {
     panel.classList.add('hidden');
     render();
     return;
   }
+
+  // Switch panel to single mode
+  document.getElementById('panel-single').classList.remove('hidden');
+  document.getElementById('panel-multi').classList.add('hidden');
+
   titleInput.value = n.title || '';
   noteInput.value  = n.note  || '';
   panel.classList.remove('hidden');
+
+  // Sync color picker
+  const color = n.color || '';
+  document.querySelectorAll('.color-swatch').forEach(s =>
+    s.classList.toggle('active', s.dataset.color === color)
+  );
+
+  // Sync connections section
+  updateConnectionsSection(id);
+
   render();
+}
+
+export function showMultiPanel(count) {
+  document.getElementById('panel-single').classList.add('hidden');
+  document.getElementById('panel-multi').classList.remove('hidden');
+  document.getElementById('panel-multi-count').textContent =
+    `${count} node${count !== 1 ? 's' : ''} selected`;
+  panel.classList.remove('hidden');
+}
+
+function updateConnectionsSection(id) {
+  const edges = state.edges.filter(e => e.from === id || e.to === id);
+  const connSection = document.getElementById('connections-section');
+  const connList    = document.getElementById('connections-list');
+
+  if (edges.length === 0) {
+    connSection.classList.add('hidden');
+    return;
+  }
+
+  connSection.classList.remove('hidden');
+  connList.innerHTML = edges.map(e => {
+    const otherId = e.from === id ? e.to : e.from;
+    const other   = state.nodes[otherId];
+    if (!other) return '';
+    const label = other.title || 'Untitled';
+    return `<button class="conn-item" data-id="${otherId}">${label}</button>`;
+  }).filter(Boolean).join('');
 }
 
 export function deselect() {
   setSelectedId(null);
+  setMultiSelect(new Set());
   panel.classList.add('hidden');
   render();
 }
@@ -79,6 +137,16 @@ export function setupPanelButtons() {
     if (ok) deleteNode(selectedId);
   });
 
+  document.getElementById('btn-delete-multi').addEventListener('click', async () => {
+    if (multiSelect.size === 0) return;
+    const count = multiSelect.size;
+    const ok = await showConfirm({
+      message: `Delete ${count} node${count !== 1 ? 's' : ''} and their connections?`,
+      confirmText: 'Delete'
+    });
+    if (ok) deleteMultiple(new Set(multiSelect));
+  });
+
   document.getElementById('btn-add').addEventListener('click', () => {
     const rect = wrap.getBoundingClientRect();
     const w = screenToWorld(rect.left + rect.width / 2, rect.top + rect.height / 2);
@@ -88,6 +156,7 @@ export function setupPanelButtons() {
   titleInput.addEventListener('input', () => {
     if (!selectedId) return;
     state.nodes[selectedId].title = titleInput.value;
+    // Update connections list in other panels if open
     render();
     debouncedSave();
   });
@@ -100,5 +169,23 @@ export function setupPanelButtons() {
       el.classList.toggle('has-note', !!noteInput.value.trim());
     }
     debouncedSave();
+  });
+
+  document.getElementById('color-picker').addEventListener('click', (e) => {
+    const swatch = e.target.closest('.color-swatch');
+    if (!swatch || !selectedId) return;
+    const color = swatch.dataset.color;
+    state.nodes[selectedId].color = color;
+    document.querySelectorAll('.color-swatch').forEach(s =>
+      s.classList.toggle('active', s.dataset.color === color)
+    );
+    render();
+    debouncedSave();
+  });
+
+  document.getElementById('connections-list').addEventListener('click', (e) => {
+    const btn = e.target.closest('.conn-item');
+    if (!btn) return;
+    selectNode(btn.dataset.id);
   });
 }

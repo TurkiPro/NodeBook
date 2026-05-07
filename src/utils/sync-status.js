@@ -1,7 +1,7 @@
 import { syncDot, syncLabel, syncChip } from '../dom.js';
 
 const CLASSES = ['sync-dot--synced', 'sync-dot--pending', 'sync-dot--offline'];
-const LABELS  = { synced: 'Saved', pending: 'Saving…', offline: 'Offline' };
+const LABELS  = { synced: 'Connected', pending: 'Saving…', offline: 'Offline' };
 
 export function setSyncStatus(status) {
   if (status === 'idle') {
