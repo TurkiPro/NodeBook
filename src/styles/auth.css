@@ -92,35 +92,51 @@
 .auth-submit:hover { background: var(--accent); color: var(--bg); }
 .auth-submit:disabled { opacity: 0.5; cursor: default; }
 
-.auth-divider {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--ink-faint);
-  font-size: 11px;
-}
-.auth-divider::before,
-.auth-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--line);
+.auth-card--confirm {
+  gap: 24px;
 }
 
-.auth-google {
-  background: transparent;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  color: var(--ink-dim);
-  font-family: inherit;
-  font-size: 12px;
-  padding: 10px;
-  cursor: pointer;
-  transition: all 0.15s;
-  letter-spacing: 0.02em;
+.auth-confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
 }
-.auth-google:hover {
-  border-color: var(--line-2);
+
+.auth-confirm-icon {
+  width: 40px;
+  height: 40px;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.auth-confirm-title {
+  font-family: 'Fraunces', serif;
+  font-size: 18px;
+  font-weight: 500;
+  font-style: italic;
   color: var(--ink);
-  background: var(--bg-3);
+}
+
+.auth-confirm-body {
+  font-size: 13px;
+  color: var(--ink-dim);
+  line-height: 1.7;
+}
+
+.auth-confirm-body strong {
+  color: var(--accent);
+}
+
+.auth-confirm-hint {
+  font-size: 11px;
+  color: var(--ink-faint);
+  line-height: 1.7;
+  max-width: 260px;
+}
+
+.auth-confirm .auth-submit {
+  margin-top: 6px;
+  width: 100%;
 }
