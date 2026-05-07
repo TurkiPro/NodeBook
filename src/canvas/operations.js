@@ -3,6 +3,7 @@ import { render, screenToWorld, applyTransform } from './render.js';
 import { panel, titleInput, noteInput, wrap } from '../dom.js';
 import { generateId } from '../utils/id.js';
 import { save, debouncedSave } from '../sync/storage.js';
+import { showConfirm } from '../utils/dialog.js';
 
 export function addNode(x, y, title) {
   const id = generateId();
@@ -71,12 +72,11 @@ export function fitAll() {
 export function setupPanelButtons() {
   document.getElementById('btn-close').addEventListener('click', deselect);
 
-  document.getElementById('btn-delete').addEventListener('click', () => {
+  document.getElementById('btn-delete').addEventListener('click', async () => {
     if (!selectedId) return;
     const n = state.nodes[selectedId];
-    if (confirm(`Delete "${n.title || 'Untitled'}" and its connections?`)) {
-      deleteNode(selectedId);
-    }
+    const ok = await showConfirm({ message: `Delete "${n.title || 'Untitled'}" and its connections?`, confirmText: 'Delete' });
+    if (ok) deleteNode(selectedId);
   });
 
   document.getElementById('btn-add').addEventListener('click', () => {

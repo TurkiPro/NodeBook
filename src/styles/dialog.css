@@ -1,0 +1,53 @@
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  backdrop-filter: blur(3px);
+  animation: dialog-fade-in 0.12s ease;
+}
+
+@keyframes dialog-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.dialog-card {
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  padding: 24px 28px;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: dialog-slide-in 0.12s ease;
+}
+
+@keyframes dialog-slide-in {
+  from { transform: translateY(-8px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.dialog-message {
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.btn-destructive {
+  color: var(--danger) !important;
+  border-color: var(--danger) !important;
+}
+.btn-destructive:hover {
+  background: rgba(199, 84, 80, 0.1) !important;
+}

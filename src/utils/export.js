@@ -4,6 +4,7 @@ import { render } from '../canvas/render.js';
 import { save } from '../sync/storage.js';
 import { panel } from '../dom.js';
 import { showToast } from './toast.js';
+import { showConfirm } from './dialog.js';
 
 function dateStamp() { return new Date().toISOString().slice(0, 10); }
 
@@ -183,12 +184,13 @@ export function setupExport() {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
         const parsed = JSON.parse(reader.result);
         if (!parsed.nodes) throw new Error('Invalid file');
         if (Object.keys(state.nodes).length > 0) {
-          if (!confirm('This will replace your current notes. Continue?')) return;
+          const ok = await showConfirm({ message: 'This will replace your current notes. Continue?', confirmText: 'Replace' });
+          if (!ok) return;
         }
         resetState(parsed);
         setSelectedId(null);

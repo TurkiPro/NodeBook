@@ -1,6 +1,7 @@
 import { supabase } from '../sync/client.js';
 import { showAuthForm, hideAuthForm } from './ui.js';
 import { signOut } from './session.js';
+import { showConfirm } from '../utils/dialog.js';
 import { loadLocal, save } from '../sync/storage.js';
 import { fetchGraph, subscribeToGraph, unsubscribeFromGraph } from '../sync/cloud.js';
 import { state, resetState } from '../canvas/state.js';
@@ -31,7 +32,8 @@ export function initAuth() {
       btnUser.textContent = label;
       btnUser.style.display = '';
       btnUser.onclick = async () => {
-        if (confirm('Sign out?')) await signOut();
+        const ok = await showConfirm({ message: 'Sign out of your account?', confirmText: 'Sign out' });
+        if (ok) await signOut();
       };
       await onLoggedIn(session.user);
     } else {

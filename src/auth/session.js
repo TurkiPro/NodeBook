@@ -14,7 +14,11 @@ export async function signUp(email, password) {
 }
 
 export async function signOut() {
-  await supabase.auth.signOut().catch(() => {});
+  try { await supabase.auth.signOut(); } catch {}
+  // Force-clear cached session even if the API call failed (e.g. project paused)
+  Object.keys(localStorage)
+    .filter(k => k.startsWith('sb-'))
+    .forEach(k => localStorage.removeItem(k));
   window.location.reload();
 }
 

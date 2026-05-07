@@ -3,6 +3,7 @@ import './styles/topbar.css';
 import './styles/canvas.css';
 import './styles/panel.css';
 import './styles/auth.css';
+import './styles/dialog.css';
 
 import { state, resetState } from './canvas/state.js';
 import { render } from './canvas/render.js';
