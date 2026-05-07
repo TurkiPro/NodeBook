@@ -37,6 +37,8 @@ export function initAuth() {
     } else {
       unsubscribeFromGraph();
       setSyncStatus('idle');
+      resetState({ nodes: {}, edges: [], view: { tx: 0, ty: 0, scale: 1 } });
+      render();
       showAuthForm();
       btnUser.style.display = 'none';
     }

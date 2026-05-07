@@ -14,7 +14,8 @@ export async function signUp(email, password) {
 }
 
 export async function signOut() {
-  await supabase.auth.signOut();
+  await supabase.auth.signOut().catch(() => {});
+  window.location.reload();
 }
 
 export async function signInWithGoogle() {

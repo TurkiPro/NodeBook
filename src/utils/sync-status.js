@@ -1,15 +1,15 @@
-import { syncDot } from '../dom.js';
+import { syncDot, syncLabel, syncChip } from '../dom.js';
 
-const CLASSES = ['sync-dot--idle', 'sync-dot--synced', 'sync-dot--pending', 'sync-dot--offline'];
-const TITLES  = {
-  idle:    'Not connected',
-  synced:  'Synced',
-  pending: 'Saving…',
-  offline: 'Offline'
-};
+const CLASSES = ['sync-dot--synced', 'sync-dot--pending', 'sync-dot--offline'];
+const LABELS  = { synced: 'Saved', pending: 'Saving…', offline: 'Offline' };
 
 export function setSyncStatus(status) {
+  if (status === 'idle') {
+    syncChip.style.display = 'none';
+    return;
+  }
+  syncChip.style.display = '';
   CLASSES.forEach(c => syncDot.classList.remove(c));
   syncDot.classList.add(`sync-dot--${status}`);
-  syncDot.title = TITLES[status] || '';
+  syncLabel.textContent = LABELS[status] || '';
 }

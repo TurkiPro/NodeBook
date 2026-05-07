@@ -60,11 +60,12 @@ export function fitAll() {
   if (!isFinite(minX)) return;
   const graphW = maxX - minX + PADDING * 2;
   const graphH = maxY - minY + PADDING * 2;
-  const scale  = Math.max(0.15, Math.min(wrap.clientWidth / graphW, wrap.clientHeight / graphH, 1.5));
+  const scale  = Math.max(0.15, Math.min(wrap.clientWidth / graphW, wrap.clientHeight / graphH, 1.0));
   state.view.scale = scale;
   state.view.tx = (wrap.clientWidth  - graphW * scale) / 2 - (minX - PADDING) * scale;
   state.view.ty = (wrap.clientHeight - graphH * scale) / 2 - (minY - PADDING) * scale;
   applyTransform();
+  render();
 }
 
 export function setupPanelButtons() {

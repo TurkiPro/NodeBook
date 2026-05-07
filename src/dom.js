@@ -8,5 +8,7 @@ export const status    = document.getElementById('status');
 export const fileInput = document.getElementById('file-input');
 export const toastEl   = document.getElementById('toast');
 export const syncDot   = document.getElementById('sync-indicator');
+export const syncLabel = document.getElementById('sync-label');
+export const syncChip  = document.getElementById('sync-chip');
 export const btnUser   = document.getElementById('btn-user');
 export const authRoot  = document.getElementById('auth-root');

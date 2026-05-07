@@ -14,10 +14,18 @@
   <div class="brand">node<span>·</span>book</div>
   <div class="toolbar">
     <span class="hint">double-click to add · shift+drag to connect · F to fit</span>
-    <span id="sync-indicator" class="sync-dot sync-dot--idle" title="Not connected"></span>
-    <button class="btn" id="btn-export">JSON</button>
-    <button class="btn" id="btn-export-png">PNG</button>
-    <button class="btn" id="btn-export-pdf">PDF</button>
+    <span class="sync-chip" id="sync-chip" style="display:none">
+      <span id="sync-indicator" class="sync-dot"></span>
+      <span id="sync-label"></span>
+    </span>
+    <div class="btn-group">
+      <button class="btn" id="btn-export">Export ▾</button>
+      <div class="dropdown" id="export-dropdown">
+        <button class="dropdown-item" id="btn-export-json">JSON</button>
+        <button class="dropdown-item" id="btn-export-png">PNG</button>
+        <button class="dropdown-item" id="btn-export-pdf">PDF</button>
+      </div>
+    </div>
     <button class="btn" id="btn-import">Import</button>
     <button class="btn primary" id="btn-add">+ Node</button>
     <button class="btn" id="btn-user" style="display:none"></button>

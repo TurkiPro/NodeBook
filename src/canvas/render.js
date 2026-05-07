@@ -51,13 +51,10 @@ export function render() {
     const bEl = elMap.get(e.to);
     if (!a || !b || !aEl || !bEl) continue;
 
-    const ar = aEl.getBoundingClientRect();
-    const br = bEl.getBoundingClientRect();
-    const s  = state.view.scale;
-    const ax = a.x + ar.width  / s / 2;
-    const ay = a.y + ar.height / s / 2;
-    const bx = b.x + br.width  / s / 2;
-    const by = b.y + br.height / s / 2;
+    const ax = a.x + aEl.offsetWidth  / 2;
+    const ay = a.y + aEl.offsetHeight / 2;
+    const bx = b.x + bEl.offsetWidth  / 2;
+    const by = b.y + bEl.offsetHeight / 2;
     const d  = curvePath(ax, ay, bx, by);
 
     const hit = document.createElementNS('http://www.w3.org/2000/svg', 'path');
