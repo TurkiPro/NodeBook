@@ -1,5 +1,5 @@
 import { state, selectedId, setSelectedId, elMap } from './state.js';
-import { render, screenToWorld } from './render.js';
+import { render, screenToWorld, applyTransform } from './render.js';
 import { panel, titleInput, noteInput, wrap } from '../dom.js';
 import { generateId } from '../utils/id.js';
 import { save, debouncedSave } from '../sync/storage.js';
@@ -43,6 +43,28 @@ export function deselect() {
   setSelectedId(null);
   panel.classList.add('hidden');
   render();
+}
+
+export function fitAll() {
+  if (elMap.size === 0) return;
+  const PADDING = 80;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const [id, el] of elMap) {
+    const n = state.nodes[id];
+    if (!n) continue;
+    minX = Math.min(minX, n.x);
+    minY = Math.min(minY, n.y);
+    maxX = Math.max(maxX, n.x + el.offsetWidth);
+    maxY = Math.max(maxY, n.y + el.offsetHeight);
+  }
+  if (!isFinite(minX)) return;
+  const graphW = maxX - minX + PADDING * 2;
+  const graphH = maxY - minY + PADDING * 2;
+  const scale  = Math.max(0.15, Math.min(wrap.clientWidth / graphW, wrap.clientHeight / graphH, 1.5));
+  state.view.scale = scale;
+  state.view.tx = (wrap.clientWidth  - graphW * scale) / 2 - (minX - PADDING) * scale;
+  state.view.ty = (wrap.clientHeight - graphH * scale) / 2 - (minY - PADDING) * scale;
+  applyTransform();
 }
 
 export function setupPanelButtons() {

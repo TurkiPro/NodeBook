@@ -1,9 +1,25 @@
+import { toPng } from 'html-to-image';
 import { state, resetState, getCleanData } from '../canvas/state.js';
 import { setSelectedId } from '../canvas/state.js';
-import { render } from '../canvas/render.js';
+import { render, applyTransform } from '../canvas/render.js';
+import { fitAll } from '../canvas/operations.js';
 import { save } from '../sync/storage.js';
-import { panel } from '../dom.js';
+import { panel, wrap } from '../dom.js';
 import { showToast } from './toast.js';
+
+function dateStamp() { return new Date().toISOString().slice(0, 10); }
+
+async function captureGraph() {
+  const savedView = { ...state.view };
+  fitAll();
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  try {
+    return await toPng(wrap, { pixelRatio: 2 });
+  } finally {
+    Object.assign(state.view, savedView);
+    applyTransform();
+  }
+}
 
 export function setupExport() {
   const fileInput = document.getElementById('file-input');
@@ -14,10 +30,40 @@ export function setupExport() {
     const url   = URL.createObjectURL(blob);
     const a     = document.createElement('a');
     a.href = url;
-    a.download = `nodebook-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `nodebook-${dateStamp()}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('Exported');
+    showToast('Exported JSON');
+  });
+
+  document.getElementById('btn-export-png').addEventListener('click', async () => {
+    if (Object.keys(state.nodes).length === 0) { showToast('Nothing to export'); return; }
+    showToast('Rendering…');
+    try {
+      const dataUrl = await captureGraph();
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `nodebook-${dateStamp()}.png`;
+      a.click();
+      showToast('Exported PNG');
+    } catch { showToast('PNG export failed'); }
+  });
+
+  document.getElementById('btn-export-pdf').addEventListener('click', async () => {
+    if (Object.keys(state.nodes).length === 0) { showToast('Nothing to export'); return; }
+    showToast('Rendering…');
+    try {
+      const dataUrl = await captureGraph();
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise(r => { img.onload = r; });
+      const { jsPDF } = await import('jspdf');
+      const orientation = img.width > img.height ? 'l' : 'p';
+      const pdf = new jsPDF({ orientation, unit: 'px', format: [img.width, img.height], hotfixes: ['px_scaling'] });
+      pdf.addImage(dataUrl, 'PNG', 0, 0, img.width, img.height);
+      pdf.save(`nodebook-${dateStamp()}.pdf`);
+      showToast('Exported PDF');
+    } catch { showToast('PDF export failed'); }
   });
 
   document.getElementById('btn-import').addEventListener('click', () => fileInput.click());
