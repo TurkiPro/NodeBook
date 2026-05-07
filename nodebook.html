@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nodebook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0e10;
+    --bg-2: #16161a;
+    --bg-3: #1c1c21;
+    --line: #26262d;
+    --line-2: #34343d;
+    --ink: #e8e6e1;
+    --ink-dim: #8a8a93;
+    --ink-faint: #55555c;
+    --accent: #d4a574;
+    --accent-dim: #8a6b48;
+    --node-bg: #1a1a1f;
+    --node-active: #2a2520;
+    --danger: #c75450;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ─── Top bar ─────────────────────────────────────────────── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-2);
+    height: 44px;
+    flex-shrink: 0;
+  }
+
+  .brand {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-style: italic;
+    font-size: 18px;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+  .brand span { color: var(--accent); }
+
+  .toolbar {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .btn {
+    background: transparent;
+    color: var(--ink-dim);
+    border: 1px solid var(--line);
+    padding: 5px 11px;
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.15s ease;
+  }
+  .btn:hover {
+    color: var(--ink);
+    border-color: var(--line-2);
+    background: var(--bg-3);
+  }
+  .btn.primary {
+    color: var(--accent);
+    border-color: var(--accent-dim);
+  }
+  .btn.primary:hover {
+    background: rgba(212, 165, 116, 0.08);
+  }
+
+  .hint {
+    font-size: 10px;
+    color: var(--ink-faint);
+    letter-spacing: 0.05em;
+    margin-right: 12px;
+  }
+
+  /* ─── Main layout ─────────────────────────────────────────── */
+  .main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  .canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 1px 1px, var(--line) 1px, transparent 0);
+    background-size: 24px 24px;
+    background-color: var(--bg);
+    cursor: grab;
+  }
+  .canvas-wrap.panning { cursor: grabbing; }
+  .canvas-wrap.connecting { cursor: crosshair; }
+
+  #canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    transform-origin: 0 0;
+  }
+
+  #edges {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    overflow: visible;
+  }
+
+  .node {
+    position: absolute;
+    background: var(--node-bg);
+    border: 1px solid var(--line-2);
+    border-radius: 6px;
+    padding: 10px 14px;
+    min-width: 120px;
+    max-width: 220px;
+    cursor: grab;
+    user-select: none;
+    color: var(--ink);
+    font-size: 12px;
+    line-height: 1.4;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.4);
+  }
+  .node:hover {
+    border-color: var(--ink-faint);
+  }
+  .node.selected {
+    border-color: var(--accent);
+    background: var(--node-active);
+    box-shadow: 0 0 0 1px var(--accent), 0 4px 12px rgba(0,0,0,0.5);
+  }
+  .node.has-note::after {
+    content: '';
+    position: absolute;
+    top: 6px; right: 6px;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .node.dragging { cursor: grabbing; opacity: 0.85; }
+  .node.connect-source {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(212, 165, 116, 0.3);
+  }
+
+  .node-title {
+    font-family: 'Fraunces', serif;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    word-break: break-word;
+  }
+
+  .edge {
+    stroke: var(--line-2);
+    stroke-width: 1.5;
+    fill: none;
+    transition: stroke 0.15s;
+  }
+  .edge:hover {
+    stroke: var(--accent);
+    cursor: pointer;
+    pointer-events: stroke;
+  }
+  .edge-hit {
+    stroke: transparent;
+    stroke-width: 14;
+    fill: none;
+    pointer-events: stroke;
+    cursor: pointer;
+  }
+  #temp-edge {
+    stroke: var(--accent);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 4;
+    fill: none;
+  }
+
+  /* ─── Side panel ──────────────────────────────────────────── */
+  .panel {
+    width: 420px;
+    background: var(--bg-2);
+    border-left: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+  .panel.hidden { display: none; }
+
+  .panel-head {
+    padding: 16px 20px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .panel-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .panel-label {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .panel-actions {
+    display: flex;
+    gap: 4px;
+  }
+  .icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--ink-faint);
+    cursor: pointer;
+    padding: 4px 6px;
+    font-size: 14px;
+    transition: color 0.15s;
+    font-family: inherit;
+  }
+  .icon-btn:hover { color: var(--ink); }
+  .icon-btn.danger:hover { color: var(--danger); }
+
+  #title-input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--ink);
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+    padding: 0;
+  }
+  #title-input::placeholder { color: var(--ink-faint); font-style: italic; }
+
+  #note-input {
+    flex: 1;
+    width: 100%;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--ink);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    padding: 18px 20px;
+    resize: none;
+  }
+  #note-input::placeholder { color: var(--ink-faint); }
+
+  .panel-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-faint);
+    text-align: center;
+    padding: 40px;
+    gap: 14px;
+  }
+  .panel-empty .glyph {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 48px;
+    color: var(--ink-faint);
+    opacity: 0.4;
+  }
+  .panel-empty p {
+    font-size: 12px;
+    line-height: 1.6;
+    max-width: 240px;
+    color: var(--ink-faint);
+  }
+
+  /* ─── Status / context ────────────────────────────────────── */
+  .status {
+    position: absolute;
+    bottom: 12px; left: 12px;
+    font-size: 10px;
+    color: var(--ink-faint);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    pointer-events: none;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    padding: 4px 8px;
+    border-radius: 3px;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--bg-3);
+    border: 1px solid var(--line-2);
+    color: var(--ink);
+    padding: 10px 18px;
+    border-radius: 4px;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    z-index: 100;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Scrollbars */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--line-2);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }
+
+  @media (max-width: 720px) {
+    .panel { width: 100%; position: absolute; right: 0; top: 44px; bottom: 0; z-index: 10; }
+    .hint { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">node<span>·</span>book</div>
+  <div class="toolbar">
+    <span class="hint">double-click canvas to add · drag to connect from edge</span>
+    <button class="btn" id="btn-export">Export</button>
+    <button class="btn" id="btn-import">Import</button>
+    <button class="btn primary" id="btn-add">+ Node</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="canvas-wrap" id="canvas-wrap">
+    <svg id="edges"></svg>
+    <div id="canvas"></div>
+    <div class="status" id="status">0 nodes</div>
+  </div>
+
+  <div class="panel hidden" id="panel">
+    <div class="panel-head">
+      <div class="panel-meta">
+        <span class="panel-label">Note</span>
+        <div class="panel-actions">
+          <button class="icon-btn danger" id="btn-delete" title="Delete node">✕</button>
+          <button class="icon-btn" id="btn-close" title="Close panel">→</button>
+        </div>
+      </div>
+      <input type="text" id="title-input" placeholder="Untitled">
+    </div>
+    <textarea id="note-input" placeholder="Write anything..."></textarea>
+  </div>
+</div>
+
+<input type="file" id="file-input" accept=".json" style="display:none">
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════════════ */
+const STORAGE_KEY = 'nodebook.v1';
+
+let state = {
+  nodes: {},   // id -> { id, x, y, title, note }
+  edges: [],   // [{ from, to }]
+  view: { tx: 0, ty: 0, scale: 1 }
+};
+
+let selectedId = null;
+let nextId = 1;
+
+// Interaction state
+let drag = null;        // dragging a node
+let pan = null;         // panning canvas
+let connect = null;     // creating an edge
+
+/* ═══════════════════════════════════════════════════════════════
+   ELEMENTS
+   ═══════════════════════════════════════════════════════════════ */
+const wrap = document.getElementById('canvas-wrap');
+const canvas = document.getElementById('canvas');
+const edgesSvg = document.getElementById('edges');
+const panel = document.getElementById('panel');
+const titleInput = document.getElementById('title-input');
+const noteInput = document.getElementById('note-input');
+const status = document.getElementById('status');
+const fileInput = document.getElementById('file-input');
+const toast = document.getElementById('toast');
+
+/* ═══════════════════════════════════════════════════════════════
+   PERSISTENCE
+   ═══════════════════════════════════════════════════════════════ */
+function save() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    showToast('Save failed: ' + e.message);
+  }
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.nodes) {
+      state = parsed;
+      if (!state.view) state.view = { tx: 0, ty: 0, scale: 1 };
+      // figure out next id
+      const ids = Object.keys(state.nodes).map(k => parseInt(k, 10)).filter(n => !isNaN(n));
+      nextId = ids.length ? Math.max(...ids) + 1 : 1;
+    }
+  } catch (e) {
+    console.warn('Load failed', e);
+  }
+}
+
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 1800);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COORD HELPERS
+   ═══════════════════════════════════════════════════════════════ */
+function screenToWorld(sx, sy) {
+  const rect = wrap.getBoundingClientRect();
+  return {
+    x: (sx - rect.left - state.view.tx) / state.view.scale,
+    y: (sy - rect.top - state.view.ty) / state.view.scale
+  };
+}
+
+function applyTransform() {
+  const v = state.view;
+  canvas.style.transform = `translate(${v.tx}px, ${v.ty}px) scale(${v.scale})`;
+  edgesSvg.style.transform = `translate(${v.tx}px, ${v.ty}px) scale(${v.scale})`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RENDER
+   ═══════════════════════════════════════════════════════════════ */
+function render() {
+  // Clear
+  canvas.innerHTML = '';
+  edgesSvg.innerHTML = '';
+
+  // Nodes
+  for (const id in state.nodes) {
+    const n = state.nodes[id];
+    const el = document.createElement('div');
+    el.className = 'node';
+    if (id === selectedId) el.classList.add('selected');
+    if (n.note && n.note.trim()) el.classList.add('has-note');
+    el.dataset.id = id;
+    el.style.left = n.x + 'px';
+    el.style.top = n.y + 'px';
+
+    const title = document.createElement('div');
+    title.className = 'node-title';
+    title.textContent = n.title || 'Untitled';
+    el.appendChild(title);
+
+    canvas.appendChild(el);
+    n._el = el;
+  }
+
+  // Edges
+  for (const e of state.edges) {
+    const a = state.nodes[e.from];
+    const b = state.nodes[e.to];
+    if (!a || !b || !a._el || !b._el) continue;
+
+    const ar = a._el.getBoundingClientRect();
+    const br = b._el.getBoundingClientRect();
+    const aw = ar.width / state.view.scale;
+    const ah = ar.height / state.view.scale;
+    const bw = br.width / state.view.scale;
+    const bh = br.height / state.view.scale;
+
+    const ax = a.x + aw / 2;
+    const ay = a.y + ah / 2;
+    const bx = b.x + bw / 2;
+    const by = b.y + bh / 2;
+
+    // Hit area for clicking edge
+    const hit = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    hit.setAttribute('class', 'edge-hit');
+    const dStr = curvePath(ax, ay, bx, by);
+    hit.setAttribute('d', dStr);
+    hit.dataset.from = e.from;
+    hit.dataset.to = e.to;
+    edgesSvg.appendChild(hit);
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('class', 'edge');
+    path.setAttribute('d', dStr);
+    edgesSvg.appendChild(path);
+  }
+
+  // Status
+  const count = Object.keys(state.nodes).length;
+  const edgeCount = state.edges.length;
+  status.textContent = `${count} node${count !== 1 ? 's' : ''} · ${edgeCount} link${edgeCount !== 1 ? 's' : ''}`;
+
+  applyTransform();
+}
+
+function curvePath(x1, y1, x2, y2) {
+  const dx = (x2 - x1) * 0.4;
+  return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   NODE OPERATIONS
+   ═══════════════════════════════════════════════════════════════ */
+function addNode(x, y, title) {
+  const id = String(nextId++);
+  state.nodes[id] = {
+    id,
+    x: x ?? 100,
+    y: y ?? 100,
+    title: title ?? '',
+    note: ''
+  };
+  save();
+  render();
+  selectNode(id);
+  setTimeout(() => titleInput.focus(), 50);
+  return id;
+}
+
+function deleteNode(id) {
+  delete state.nodes[id];
+  state.edges = state.edges.filter(e => e.from !== id && e.to !== id);
+  if (selectedId === id) {
+    selectedId = null;
+    panel.classList.add('hidden');
+  }
+  save();
+  render();
+}
+
+function selectNode(id) {
+  selectedId = id;
+  const n = state.nodes[id];
+  if (!n) {
+    panel.classList.add('hidden');
+    render();
+    return;
+  }
+  titleInput.value = n.title || '';
+  noteInput.value = n.note || '';
+  panel.classList.remove('hidden');
+  render();
+}
+
+function deselect() {
+  selectedId = null;
+  panel.classList.add('hidden');
+  render();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   INTERACTIONS
+   ═══════════════════════════════════════════════════════════════ */
+// Double-click on empty canvas → create node
+wrap.addEventListener('dblclick', (e) => {
+  if (e.target.closest('.node')) return;
+  if (e.target.closest('.edge-hit')) return;
+  const w = screenToWorld(e.clientX, e.clientY);
+  addNode(w.x - 60, w.y - 18);
+});
+
+// Mouse down on canvas (start node drag, edge create, or pan)
+wrap.addEventListener('mousedown', (e) => {
+  if (e.button !== 0) return;
+
+  const nodeEl = e.target.closest('.node');
+  if (nodeEl) {
+    const id = nodeEl.dataset.id;
+    const n = state.nodes[id];
+    const rect = nodeEl.getBoundingClientRect();
+    const w = screenToWorld(e.clientX, e.clientY);
+
+    // If user grabs the right edge of the node → start connection
+    const localX = e.clientX - rect.left;
+    const isOnRightEdge = localX > rect.width - 12 && e.shiftKey === false && rect.width > 20;
+    // Simpler: hold shift to start connection, or right-click
+    const isConnect = e.shiftKey || e.altKey;
+
+    if (isConnect) {
+      connect = { fromId: id, x: e.clientX, y: e.clientY };
+      nodeEl.classList.add('connect-source');
+      wrap.classList.add('connecting');
+    } else {
+      drag = {
+        id,
+        offsetX: w.x - n.x,
+        offsetY: w.y - n.y,
+        moved: false
+      };
+      nodeEl.classList.add('dragging');
+    }
+    e.preventDefault();
+    return;
+  }
+
+  // Edge click for deletion
+  const edgeHit = e.target.closest('.edge-hit');
+  if (edgeHit) {
+    const from = edgeHit.dataset.from;
+    const to = edgeHit.dataset.to;
+    if (confirm('Delete this connection?')) {
+      state.edges = state.edges.filter(ed => !(ed.from === from && ed.to === to));
+      save();
+      render();
+    }
+    return;
+  }
+
+  // Otherwise pan
+  pan = { sx: e.clientX, sy: e.clientY, tx: state.view.tx, ty: state.view.ty };
+  wrap.classList.add('panning');
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (drag) {
+    const w = screenToWorld(e.clientX, e.clientY);
+    const n = state.nodes[drag.id];
+    n.x = w.x - drag.offsetX;
+    n.y = w.y - drag.offsetY;
+    drag.moved = true;
+    render();
+  } else if (pan) {
+    state.view.tx = pan.tx + (e.clientX - pan.sx);
+    state.view.ty = pan.ty + (e.clientY - pan.sy);
+    applyTransform();
+  } else if (connect) {
+    connect.x = e.clientX;
+    connect.y = e.clientY;
+    drawTempEdge();
+  }
+});
+
+window.addEventListener('mouseup', (e) => {
+  if (drag) {
+    const el = state.nodes[drag.id]?._el;
+    if (el) el.classList.remove('dragging');
+    if (!drag.moved) {
+      // Treat as click → select
+      selectNode(drag.id);
+    } else {
+      save();
+    }
+    drag = null;
+  }
+
+  if (pan) {
+    pan = null;
+    wrap.classList.remove('panning');
+    save();
+  }
+
+  if (connect) {
+    const target = document.elementFromPoint(e.clientX, e.clientY);
+    const targetNode = target?.closest('.node');
+    const sourceEl = state.nodes[connect.fromId]?._el;
+    if (sourceEl) sourceEl.classList.remove('connect-source');
+
+    if (targetNode && targetNode.dataset.id !== connect.fromId) {
+      const toId = targetNode.dataset.id;
+      const exists = state.edges.some(ed =>
+        (ed.from === connect.fromId && ed.to === toId) ||
+        (ed.from === toId && ed.to === connect.fromId)
+      );
+      if (!exists) {
+        state.edges.push({ from: connect.fromId, to: toId });
+        save();
+      }
+    }
+
+    connect = null;
+    wrap.classList.remove('connecting');
+    clearTempEdge();
+    render();
+  }
+});
+
+function drawTempEdge() {
+  clearTempEdge();
+  const from = state.nodes[connect.fromId];
+  if (!from || !from._el) return;
+  const fromRect = from._el.getBoundingClientRect();
+  const wrapRect = wrap.getBoundingClientRect();
+
+  const x1 = (fromRect.left + fromRect.width / 2 - wrapRect.left - state.view.tx) / state.view.scale;
+  const y1 = (fromRect.top + fromRect.height / 2 - wrapRect.top - state.view.ty) / state.view.scale;
+  const x2 = (connect.x - wrapRect.left - state.view.tx) / state.view.scale;
+  const y2 = (connect.y - wrapRect.top - state.view.ty) / state.view.scale;
+
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('id', 'temp-edge');
+  path.setAttribute('d', curvePath(x1, y1, x2, y2));
+  edgesSvg.appendChild(path);
+}
+
+function clearTempEdge() {
+  const t = document.getElementById('temp-edge');
+  if (t) t.remove();
+}
+
+// Zoom with wheel
+wrap.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const delta = -e.deltaY * 0.0015;
+  const newScale = Math.min(2.5, Math.max(0.3, state.view.scale * (1 + delta)));
+  const ratio = newScale / state.view.scale;
+
+  const rect = wrap.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  state.view.tx = mx - (mx - state.view.tx) * ratio;
+  state.view.ty = my - (my - state.view.ty) * ratio;
+  state.view.scale = newScale;
+
+  applyTransform();
+}, { passive: false });
+
+/* ═══════════════════════════════════════════════════════════════
+   PANEL EDITS
+   ═══════════════════════════════════════════════════════════════ */
+let saveTimer = null;
+function debouncedSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 300);
+}
+
+titleInput.addEventListener('input', () => {
+  if (!selectedId) return;
+  state.nodes[selectedId].title = titleInput.value;
+  // re-render only the selected node title (cheap to just re-render all)
+  render();
+  debouncedSave();
+});
+
+noteInput.addEventListener('input', () => {
+  if (!selectedId) return;
+  state.nodes[selectedId].note = noteInput.value;
+  // mark "has note" indicator without full re-render
+  const el = state.nodes[selectedId]._el;
+  if (el) {
+    if (noteInput.value.trim()) el.classList.add('has-note');
+    else el.classList.remove('has-note');
+  }
+  debouncedSave();
+});
+
+document.getElementById('btn-close').addEventListener('click', deselect);
+document.getElementById('btn-delete').addEventListener('click', () => {
+  if (!selectedId) return;
+  const n = state.nodes[selectedId];
+  if (confirm(`Delete "${n.title || 'Untitled'}" and its connections?`)) {
+    deleteNode(selectedId);
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   TOOLBAR
+   ═══════════════════════════════════════════════════════════════ */
+document.getElementById('btn-add').addEventListener('click', () => {
+  // Place near center of current viewport
+  const rect = wrap.getBoundingClientRect();
+  const w = screenToWorld(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  addNode(w.x - 60, w.y - 18);
+});
+
+document.getElementById('btn-export').addEventListener('click', () => {
+  // Strip _el refs
+  const clean = {
+    nodes: {},
+    edges: state.edges,
+    view: state.view
+  };
+  for (const id in state.nodes) {
+    const { _el, ...rest } = state.nodes[id];
+    clean.nodes[id] = rest;
+  }
+  const blob = new Blob([JSON.stringify(clean, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const date = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `nodebook-${date}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Exported');
+});
+
+document.getElementById('btn-import').addEventListener('click', () => {
+  fileInput.click();
+});
+
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      if (!parsed.nodes) throw new Error('Invalid file');
+      if (Object.keys(state.nodes).length > 0) {
+        if (!confirm('This will replace your current notes. Continue?')) return;
+      }
+      state = parsed;
+      if (!state.view) state.view = { tx: 0, ty: 0, scale: 1 };
+      const ids = Object.keys(state.nodes).map(k => parseInt(k, 10)).filter(n => !isNaN(n));
+      nextId = ids.length ? Math.max(...ids) + 1 : 1;
+      selectedId = null;
+      panel.classList.add('hidden');
+      save();
+      render();
+      showToast('Imported');
+    } catch (err) {
+      showToast('Import failed: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  fileInput.value = '';
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   KEYBOARD
+   ═══════════════════════════════════════════════════════════════ */
+document.addEventListener('keydown', (e) => {
+  // Don't intercept while typing
+  if (document.activeElement === titleInput || document.activeElement === noteInput) {
+    if (e.key === 'Escape') {
+      e.target.blur();
+    }
+    return;
+  }
+
+  if (e.key === 'Escape') {
+    deselect();
+  } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
+    const n = state.nodes[selectedId];
+    if (confirm(`Delete "${n.title || 'Untitled'}"?`)) {
+      deleteNode(selectedId);
+    }
+  } else if (e.key === 'n' && !e.metaKey && !e.ctrlKey) {
+    const rect = wrap.getBoundingClientRect();
+    const w = screenToWorld(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    addNode(w.x - 60, w.y - 18);
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════════════════ */
+load();
+render();
+
+// First-run starter node
+if (Object.keys(state.nodes).length === 0) {
+  addNode(280, 200, 'Start here');
+  state.nodes[Object.keys(state.nodes)[0]].note =
+    'Welcome to Nodebook.\n\n' +
+    '• Double-click anywhere to create a node\n' +
+    '• Click a node to open its note\n' +
+    '• Drag to move, scroll to zoom\n' +
+    '• Hold Shift + drag from a node to connect it to another\n' +
+    '• Click a connection line to delete it\n' +
+    '• Press N to add a node, Delete to remove the selected one\n' +
+    '• Everything saves to your browser automatically\n' +
+    '• Use Export to back up your notes as JSON\n\n' +
+    'You can delete this node when you\'re ready.';
+  noteInput.value = state.nodes[Object.keys(state.nodes)[0]].note;
+  save();
+  render();
+}
+</script>
+</body>
+</html>
