@@ -36,26 +36,43 @@ function applyUserUI(user) {
 }
 
 export async function initAuth() {
-  // Eagerly read the session from localStorage — resolves immediately without a network call,
-  // so new tabs see the correct state before any async auth events fire.
-  const { data: { session: initialSession } } = await supabase.auth.getSession();
+  let initialized = false;
+
+  // getSession() reads from localStorage instantly when the token is valid.
+  // When the token is expired it makes a network refresh — which hangs if the
+  // Supabase project is paused. Race it against 1.5 s so the UI never freezes.
+  let initialSession = null;
+  try {
+    const timeout = new Promise(resolve =>
+      setTimeout(() => resolve({ data: { session: null } }), 1500)
+    );
+    const result = await Promise.race([supabase.auth.getSession(), timeout]);
+    initialSession = result.data?.session ?? null;
+  } catch {
+    initialSession = null;
+  }
 
   if (initialSession) {
+    initialized = true;
     applyUserUI(initialSession.user);
     await onLoggedIn(initialSession.user);
   } else {
     showAuthForm();
   }
 
-  // Handle future auth changes (sign-in, sign-out, token refresh).
-  // Skip INITIAL_SESSION — already handled by getSession() above.
+  // Handle future auth changes (sign-in, sign-out, token refresh after a slow wake-up).
   supabase.auth.onAuthStateChange(async (event, session) => {
+    // Skip INITIAL_SESSION — already handled by getSession() above.
+    // For TOKEN_REFRESHED / SIGNED_IN after we're already logged in, also skip.
     if (event === 'INITIAL_SESSION') return;
 
     if (session) {
+      if (initialized) return;
+      initialized = true;
       applyUserUI(session.user);
       await onLoggedIn(session.user);
     } else {
+      initialized = false;
       unsubscribeFromGraph();
       setSyncStatus('idle');
       resetState({ nodes: {}, edges: [], view: { tx: 0, ty: 0, scale: 1 } });
