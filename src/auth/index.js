@@ -64,7 +64,6 @@ async function onLoggedIn(user) {
         render();
         showToast('Synced');
       }
-      setSyncStatus('synced');
     } else if (Object.keys(state.nodes).length === 0) {
       // New user — create welcome node
       const id = addNode(280, 200, 'Start here');
@@ -74,6 +73,7 @@ async function onLoggedIn(user) {
         render();
       }
     }
+    setSyncStatus('synced');
   } catch {
     showToast('Offline — using local copy');
     setSyncStatus('offline');
