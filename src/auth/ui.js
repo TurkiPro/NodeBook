@@ -129,11 +129,13 @@ export function showAuthForm() {
       submitBtn.disabled = false;
 
       if (mode === 'login' && e._tag === 'invalid_credentials') {
-        switchTab('signup');
-        showAuthMessage('No account found with this email — sign up to get started.', 'info');
-        passEl.value = '';
+        showAuthMessage('Incorrect email or password.', 'err');
       } else if (mode === 'login' && e._tag === 'email_not_confirmed') {
-        showAuthMessage('Check your inbox — you need to verify your email before signing in.', 'warn');
+        showAuthMessage('Verify your email first — check your inbox for a confirmation link.', 'warn');
+      } else if (mode === 'signup' && e._tag === 'email_exists') {
+        switchTab('login');
+        passEl.value = '';
+        showAuthMessage('This email is already registered — sign in below.', 'info');
       } else {
         showToast(e.message || 'Auth failed');
       }

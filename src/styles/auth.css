@@ -78,6 +78,9 @@
 .auth-message--warn {
   color: var(--ink-dim);
 }
+.auth-message--err {
+  color: #c0665a;
+}
 
 .auth-form {
   display: flex;

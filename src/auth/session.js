@@ -14,7 +14,9 @@ export async function signUp(email, password) {
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) throw error;
   if (data.user?.identities?.length === 0) {
-    throw new Error('An account with this email already exists. Try signing in instead.');
+    const err = new Error('This email is already registered.');
+    err._tag = 'email_exists';
+    throw err;
   }
 }
 
