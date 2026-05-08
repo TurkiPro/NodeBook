@@ -1,10 +1,14 @@
 import { signIn, signUp } from './session.js';
 import { showToast } from '../utils/toast.js';
 import { authRoot } from '../dom.js';
+import { startPong } from './pong.js';
+
+let stopPong = null;
 
 export function showAuthForm() {
   authRoot.innerHTML = `
     <div class="auth-overlay">
+      <canvas id="pong-canvas" class="pong-canvas"></canvas>
       <div class="auth-card">
         <div class="auth-brand">node<span>·</span>book</div>
         <div class="auth-tabs">
@@ -23,6 +27,9 @@ export function showAuthForm() {
       </div>
     </div>
   `;
+
+  if (stopPong) { stopPong(); stopPong = null; }
+  stopPong = startPong(authRoot.querySelector('#pong-canvas'));
 
   let mode = 'login';
 
@@ -130,5 +137,6 @@ function showConfirmEmail(email) {
 }
 
 export function hideAuthForm() {
+  if (stopPong) { stopPong(); stopPong = null; }
   authRoot.innerHTML = '';
 }
