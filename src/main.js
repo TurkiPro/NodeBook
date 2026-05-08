@@ -16,11 +16,13 @@ import { setupKeyboard } from './canvas/keyboard.js';
 import { setupPanelButtons, addNode } from './canvas/operations.js';
 import { setupExport } from './utils/export.js';
 import { initAuth } from './auth/index.js';
+import { setSyncStatus } from './utils/sync-status.js';
 
 // Wire save → debounced cloud push
 onSave(markDirty);
 onFlush(pushGraph);
 window.addEventListener('online', flush);
+window.addEventListener('offline', () => setSyncStatus('offline'));
 
 // Register all event listeners once
 setupInteractions();
@@ -30,7 +32,7 @@ setupExport();
 
 if (supabase) {
   // Full mode: auth required, cloud sync enabled
-  initAuth();
+  initAuth().catch(console.error);
 } else {
   // Local-only mode — works like the original prototype (no account needed)
   initLocal();

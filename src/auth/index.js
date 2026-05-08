@@ -24,17 +24,36 @@ const WELCOME_NOTE =
   '• Your notes sync automatically across all your devices\n\n' +
   "You can delete this node when you're ready.";
 
-export function initAuth() {
+function applyUserUI(user) {
+  hideAuthForm();
+  const label = user.email?.split('@')[0] || 'Account';
+  btnUser.textContent = label;
+  btnUser.style.display = '';
+  btnUser.onclick = async () => {
+    const ok = await showConfirm({ message: 'Sign out of your account?', confirmText: 'Sign out' });
+    if (ok) await signOut();
+  };
+}
+
+export async function initAuth() {
+  // Eagerly read the session from localStorage — resolves immediately without a network call,
+  // so new tabs see the correct state before any async auth events fire.
+  const { data: { session: initialSession } } = await supabase.auth.getSession();
+
+  if (initialSession) {
+    applyUserUI(initialSession.user);
+    await onLoggedIn(initialSession.user);
+  } else {
+    showAuthForm();
+  }
+
+  // Handle future auth changes (sign-in, sign-out, token refresh).
+  // Skip INITIAL_SESSION — already handled by getSession() above.
   supabase.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'INITIAL_SESSION') return;
+
     if (session) {
-      hideAuthForm();
-      const label = session.user.email?.split('@')[0] || 'Account';
-      btnUser.textContent = label;
-      btnUser.style.display = '';
-      btnUser.onclick = async () => {
-        const ok = await showConfirm({ message: 'Sign out of your account?', confirmText: 'Sign out' });
-        if (ok) await signOut();
-      };
+      applyUserUI(session.user);
       await onLoggedIn(session.user);
     } else {
       unsubscribeFromGraph();

@@ -1,20 +1,9 @@
-import { setSyncStatus } from '../utils/sync-status.js';
-
 const PENDING_KEY = 'nodebook.pending';
 
 let _flushFn = null;
 let _timer = null;
 
-export function onFlush(fn) {
-  _flushFn = fn;
-  // When the browser regains connectivity, flush any queued writes
-  window.addEventListener('online', () => {
-    if (hasPending()) flush();
-  });
-  window.addEventListener('offline', () => {
-    setSyncStatus('offline');
-  });
-}
+export function onFlush(fn) { _flushFn = fn; }
 
 export function markDirty() {
   localStorage.setItem(PENDING_KEY, '1');
