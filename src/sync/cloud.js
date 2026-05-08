@@ -14,7 +14,17 @@ export async function listGraphs(userId) {
     .select('id, title, folder_id, version, updated_at, data')
     .eq('user_id', userId)
     .order('updated_at', { ascending: false });
-  if (error) throw error;
+
+  if (error) {
+    // folder_id column may not exist yet (migration 003 not run) — retry without it
+    const { data: data2, error: error2 } = await supabase
+      .from('graphs')
+      .select('id, title, version, updated_at, data')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false });
+    if (error2) throw error2;
+    return (data2 || []).map(g => ({ ...g, folder_id: null }));
+  }
   return data || [];
 }
 
@@ -64,7 +74,7 @@ export async function listFolders(userId) {
     .select('id, name, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
-  if (error) throw error;
+  if (error) return []; // folders table may not exist yet (migration 003 not run)
   return data || [];
 }
 
