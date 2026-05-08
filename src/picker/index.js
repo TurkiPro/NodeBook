@@ -32,8 +32,13 @@ async function refreshPicker() {
       listGraphs(currentUser.id),
       listFolders(currentUser.id),
     ]);
-  } catch {
-    pickerRoot.innerHTML = '<div class="picker-loading picker-loading--err">Could not load graphs. Check your connection.</div>';
+  } catch (err) {
+    console.error('[picker] load failed:', err);
+    pickerRoot.innerHTML = `
+      <div class="picker-loading picker-loading--err">
+        Could not load graphs: ${err?.message || String(err)}<br><br>
+        <button onclick="location.reload()" style="margin-top:8px;padding:6px 14px;background:transparent;border:1px solid #555;color:#aaa;font-family:inherit;font-size:11px;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;border-radius:3px;">Retry</button>
+      </div>`;
     return;
   }
 

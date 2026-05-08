@@ -9,23 +9,32 @@ let subscription = null;
 
 export async function listGraphs(userId) {
   if (!supabase) return [];
-  const { data, error } = await supabase
+
+  // Attempt 1: full schema with folder_id (migration 003 applied)
+  const { data: d1, error: e1 } = await supabase
     .from('graphs')
     .select('id, title, folder_id, version, updated_at, data')
     .eq('user_id', userId)
     .order('updated_at', { ascending: false });
+  if (!e1) return d1 || [];
 
-  if (error) {
-    // folder_id column may not exist yet (migration 003 not run) — retry without it
-    const { data: data2, error: error2 } = await supabase
-      .from('graphs')
-      .select('id, title, version, updated_at, data')
-      .eq('user_id', userId)
-      .order('updated_at', { ascending: false });
-    if (error2) throw error2;
-    return (data2 || []).map(g => ({ ...g, folder_id: null }));
-  }
-  return data || [];
+  // Attempt 2: without folder_id (migration 003 not yet applied)
+  const { data: d2, error: e2 } = await supabase
+    .from('graphs')
+    .select('id, title, version, updated_at, data')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false });
+  if (!e2) return (d2 || []).map(g => ({ ...g, folder_id: null }));
+
+  // Attempt 3: minimal — covers any older schema variant
+  const { data: d3, error: e3 } = await supabase
+    .from('graphs')
+    .select('id, version, updated_at, data')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false });
+  if (!e3) return (d3 || []).map(g => ({ ...g, folder_id: null, title: 'My Graph' }));
+
+  throw e3;
 }
 
 export async function fetchGraphById(graphId) {
