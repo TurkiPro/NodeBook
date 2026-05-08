@@ -5,7 +5,7 @@ export function mergeFetch(remoteData) {
   const remoteVersion = remoteData.version || 0;
   const localVersion  = state.version   || 0;
 
-  if (remoteVersion >= localVersion) {
+  if (remoteVersion > localVersion) {
     resetState(remoteData);
     saveLocal();
     return true;

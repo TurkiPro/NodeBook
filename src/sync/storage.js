@@ -1,4 +1,4 @@
-import { getCleanData } from '../canvas/state.js';
+import { state, getCleanData } from '../canvas/state.js';
 import { showToast } from '../utils/toast.js';
 
 const STORAGE_KEY = 'nodebook.v1';
@@ -10,7 +10,12 @@ export function onSave(fn) { _onSave = fn; }
 
 export function saveLocal() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(getCleanData()));
+    const data = {
+      ...getCleanData(),
+      graphId: state.graphId || null,
+      version: state.version || 0,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch (e) {
     showToast('Save failed: ' + e.message);
   }
