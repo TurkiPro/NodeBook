@@ -42,3 +42,8 @@ export function debouncedSave() {
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(save, 300);
 }
+
+export function cancelPendingSave() {
+  clearTimeout(_saveTimer);
+  _saveTimer = null;
+}

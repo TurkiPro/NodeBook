@@ -2,7 +2,7 @@ import { supabase } from '../sync/client.js';
 import { showAuthForm, hideAuthForm } from './ui.js';
 import { signOut } from './session.js';
 import { showConfirm } from '../utils/dialog.js';
-import { loadLocal, save } from '../sync/storage.js';
+import { loadLocal, save, cancelPendingSave } from '../sync/storage.js';
 import { fetchGraph, subscribeToGraph, unsubscribeFromGraph } from '../sync/cloud.js';
 import { state, resetState } from '../canvas/state.js';
 import { render } from '../canvas/render.js';
@@ -73,6 +73,7 @@ export async function initAuth() {
       await onLoggedIn(session.user);
     } else {
       initialized = false;
+      cancelPendingSave(); // prevent a queued save from writing empty state to localStorage
       unsubscribeFromGraph();
       setSyncStatus('idle');
       resetState({ nodes: {}, edges: [], view: { tx: 0, ty: 0, scale: 1 } });
@@ -84,6 +85,9 @@ export async function initAuth() {
 }
 
 async function onLoggedIn(user) {
+  // Mark this browser as having seen the app — prevents welcome node from appearing on re-login
+  localStorage.setItem('nodebook.seen', '1');
+
   // User is authenticated — show Connected immediately; pushGraph owns status from here
   setSyncStatus('synced');
 
@@ -103,8 +107,9 @@ async function onLoggedIn(user) {
         render();
         showToast('Synced');
       }
-    } else if (Object.keys(state.nodes).length === 0) {
-      // New user — create welcome node
+    } else if (Object.keys(state.nodes).length === 0 && !localStorage.getItem('nodebook.seen')) {
+      // Genuinely new user — create welcome node once, then never again
+      localStorage.setItem('nodebook.seen', '1');
       const id = addNode(280, 200, 'Start here');
       if (state.nodes[id]) {
         state.nodes[id].note = WELCOME_NOTE;

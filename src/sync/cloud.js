@@ -1,6 +1,7 @@
 import { supabase } from './client.js';
 import { state, getCleanData } from '../canvas/state.js';
 import { setSyncStatus } from '../utils/sync-status.js';
+import { saveLocal } from './storage.js';
 
 let subscription = null;
 
@@ -28,7 +29,8 @@ export async function pushGraph() {
 
   try {
     if (state.graphId) {
-      await supabase
+      // UPDATE — check that a row was actually affected; if not, fall through to INSERT
+      const { data: rows, error } = await supabase
         .from('graphs')
         .update({
           data: graphData,
@@ -36,18 +38,29 @@ export async function pushGraph() {
           updated_at: new Date().toISOString()
         })
         .eq('id', state.graphId)
-        .eq('user_id', userId);
-      state.version = (state.version || 0) + 1;
-    } else {
-      const { data, error } = await supabase
-        .from('graphs')
-        .insert({ user_id: userId, data: graphData, version: 1 })
-        .select()
-        .single();
-      if (error) throw error;
-      state.graphId = data.id;
-      state.version = 1;
+        .eq('user_id', userId)
+        .select('id');
+
+      if (!error && rows && rows.length > 0) {
+        state.version = (state.version || 0) + 1;
+        saveLocal();
+        setSyncStatus('synced');
+        return true;
+      }
+      // Row missing — clear graphId and fall through to INSERT below
+      state.graphId = null;
     }
+
+    // INSERT (new user or recovered missing row)
+    const { data, error } = await supabase
+      .from('graphs')
+      .insert({ user_id: userId, data: graphData, version: 1 })
+      .select()
+      .single();
+    if (error) throw error;
+    state.graphId = data.id;
+    state.version = 1;
+    saveLocal();
     setSyncStatus('synced');
     return true;
   } catch {
