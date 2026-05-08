@@ -2,28 +2,39 @@ import { supabase } from '../sync/client.js';
 import { showAuthForm, hideAuthForm } from './ui.js';
 import { signOut } from './session.js';
 import { showConfirm } from '../utils/dialog.js';
-import { loadLocal, save, cancelPendingSave } from '../sync/storage.js';
-import { fetchGraph, subscribeToGraph, unsubscribeFromGraph } from '../sync/cloud.js';
+import { cancelPendingSave } from '../sync/storage.js';
+import { fetchGraphById, unsubscribeFromGraph, subscribeToGraph } from '../sync/cloud.js';
 import { state, resetState } from '../canvas/state.js';
 import { render } from '../canvas/render.js';
 import { showToast } from '../utils/toast.js';
 import { hasPending, flush } from '../sync/queue.js';
 import { mergeFetch } from '../sync/merge.js';
-import { addNode } from '../canvas/operations.js';
-import { btnUser } from '../dom.js';
+import { btnUser, btnBack, topbarGraphTitle } from '../dom.js';
 import { setSyncStatus } from '../utils/sync-status.js';
+import { showPicker, hidePicker } from '../picker/index.js';
 
-const WELCOME_NOTE =
-  'Welcome to Nodebook.\n\n' +
-  '• Double-click anywhere to create a node\n' +
-  '• Click a node to open its note\n' +
-  '• Drag to move, scroll to zoom\n' +
-  '• Hold Shift + drag from a node to connect it to another\n' +
-  '• Click a connection line to delete it\n' +
-  '• Press N to add a node, Delete to remove the selected one\n' +
-  '• Your notes sync automatically across all your devices\n\n' +
-  "You can delete this node when you're ready.";
+let currentUser  = null;
+let initialized  = false;
 
+// ── Canvas visibility ───────────────────────────────────────────────────────
+const topbarEl = document.getElementById('topbar');
+const mainEl   = document.getElementById('main');
+
+function showCanvas() {
+  topbarEl.style.display = '';
+  mainEl.style.display   = '';
+  btnBack.style.display  = '';
+  topbarGraphTitle.textContent = state.graphTitle || 'Untitled';
+}
+
+function hideCanvas() {
+  topbarEl.style.display = 'none';
+  mainEl.style.display   = 'none';
+  btnBack.style.display  = 'none';
+  topbarGraphTitle.textContent = '';
+}
+
+// ── Auth state helpers ──────────────────────────────────────────────────────
 function applyUserUI(user) {
   hideAuthForm();
   const label = user.email?.split('@')[0] || 'Account';
@@ -35,12 +46,55 @@ function applyUserUI(user) {
   };
 }
 
-export async function initAuth() {
-  let initialized = false;
+// ── Open a specific graph from picker ───────────────────────────────────────
+async function openGraph(graphId, isNew = false) {
+  hidePicker();
+  showCanvas();
+  setSyncStatus('synced');
 
-  // getSession() reads from localStorage instantly when the token is valid.
-  // When the token is expired it makes a network refresh — which hangs if the
-  // Supabase project is paused. Race it against 1.5 s so the UI never freezes.
+  const graphData = await fetchGraphById(graphId);
+  if (graphData) {
+    resetState(graphData);
+    render();
+    topbarGraphTitle.textContent = state.graphTitle || 'Untitled';
+  } else {
+    // Freshly created graph — show empty canvas
+    resetState({ nodes: {}, edges: [], view: { tx: 0, ty: 0, scale: 1 }, graphId, graphTitle: 'Untitled', version: 1 });
+    render();
+  }
+
+  if (hasPending()) await flush();
+
+  subscribeToGraph(graphId, (remoteData) => {
+    const updated = mergeFetch(remoteData);
+    if (updated) { render(); showToast('Graph updated from another device'); }
+  });
+}
+
+// ── Back to picker ──────────────────────────────────────────────────────────
+export async function backToPicker() {
+  if (hasPending()) await flush();
+  unsubscribeFromGraph();
+  cancelPendingSave();
+  resetState({ nodes: {}, edges: [], view: { tx: 0, ty: 0, scale: 1 } });
+  render();
+  hideCanvas();
+  if (currentUser) await showPicker(currentUser, openGraph);
+}
+
+// ── Post-login: go to picker ────────────────────────────────────────────────
+async function onLoggedIn(user) {
+  currentUser = user;
+  setSyncStatus('synced');
+  hideCanvas();
+  await showPicker(user, openGraph);
+}
+
+// ── initAuth ────────────────────────────────────────────────────────────────
+export async function initAuth() {
+  // Immediately hide canvas until we know the user is logged in AND has chosen a graph
+  hideCanvas();
+
   let initialSession = null;
   try {
     const timeout = new Promise(resolve =>
@@ -60,10 +114,7 @@ export async function initAuth() {
     showAuthForm();
   }
 
-  // Handle future auth changes (sign-in, sign-out, token refresh after a slow wake-up).
   supabase.auth.onAuthStateChange(async (event, session) => {
-    // Skip INITIAL_SESSION — already handled by getSession() above.
-    // For TOKEN_REFRESHED / SIGNED_IN after we're already logged in, also skip.
     if (event === 'INITIAL_SESSION') return;
 
     if (session) {
@@ -73,72 +124,16 @@ export async function initAuth() {
       await onLoggedIn(session.user);
     } else {
       initialized = false;
-      cancelPendingSave(); // prevent a queued save from writing empty state to localStorage
+      currentUser = null;
+      cancelPendingSave();
       unsubscribeFromGraph();
       setSyncStatus('idle');
+      hidePicker();
+      hideCanvas();
       resetState({ nodes: {}, edges: [], view: { tx: 0, ty: 0, scale: 1 } });
       render();
       showAuthForm();
       btnUser.style.display = 'none';
-    }
-  });
-}
-
-async function onLoggedIn(user) {
-  // User is authenticated — show Connected immediately; pushGraph owns status from here
-  setSyncStatus('synced');
-
-  // Render cached local data immediately for instant startup
-  const local = loadLocal();
-  if (local) {
-    // Having local data means the user has been here before on this browser
-    if (Object.keys(local.nodes || {}).length > 0) localStorage.setItem('nodebook.seen', '1');
-    resetState(local);
-    render();
-  }
-
-  // Fetch cloud and merge — retry up to 3 times to handle projects waking from pause
-  const trySync = async () => {
-    const remote = await fetchGraph(user.id);
-    if (remote) {
-      // A row exists in Supabase — definitively not a new user
-      localStorage.setItem('nodebook.seen', '1');
-      const updated = mergeFetch(remote);
-      if (updated) {
-        render();
-        showToast('Synced');
-      }
-    } else if (Object.keys(state.nodes).length === 0 && !localStorage.getItem('nodebook.seen')) {
-      // No local data, no remote row, never seen before → genuinely new user
-      localStorage.setItem('nodebook.seen', '1');
-      const id = addNode(280, 200, 'Start here');
-      if (state.nodes[id]) {
-        state.nodes[id].note = WELCOME_NOTE;
-        save();
-        render();
-      }
-    }
-  };
-
-  const runWithRetry = async (delays = [5000, 15000]) => {
-    try {
-      await trySync();
-    } catch {
-      if (delays.length === 0) return;
-      setTimeout(() => runWithRetry(delays.slice(1)), delays[0]);
-    }
-  };
-  runWithRetry();
-
-  // Flush any writes that happened before login
-  if (hasPending()) await flush();
-
-  // Subscribe to real-time updates from other devices
-  subscribeToGraph(user.id, (remoteData) => {
-    const updated = mergeFetch(remoteData);
-    if (updated) {
-      render();
-      showToast('Graph updated from another device');
     }
   });
 }

@@ -3,6 +3,7 @@ export const state = {
   edges: [],
   view: { tx: 0, ty: 0, scale: 1 },
   graphId: null,
+  graphTitle: 'Untitled',
   version: 0
 };
 
@@ -25,11 +26,12 @@ export let connect = null;
 export function setConnect(c) { connect = c; }
 
 export function resetState(data) {
-  state.nodes = data.nodes || {};
-  state.edges = data.edges || [];
-  state.view = data.view || { tx: 0, ty: 0, scale: 1 };
-  if (data.graphId) state.graphId = data.graphId;
-  state.version = data.version || 0;
+  state.nodes   = data.nodes   || {};
+  state.edges   = data.edges   || [];
+  state.view    = data.view    || { tx: 0, ty: 0, scale: 1 };
+  state.graphId    = data.graphId    ?? null;
+  state.graphTitle = data.graphTitle ?? 'Untitled';
+  state.version    = data.version    || 0;
   elMap.clear();
 }
 

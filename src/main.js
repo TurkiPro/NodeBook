@@ -4,6 +4,7 @@ import './styles/canvas.css';
 import './styles/panel.css';
 import './styles/auth.css';
 import './styles/dialog.css';
+import './styles/picker.css';
 
 import { state, resetState } from './canvas/state.js';
 import { render } from './canvas/render.js';
@@ -15,8 +16,9 @@ import { setupInteractions } from './canvas/interactions.js';
 import { setupKeyboard } from './canvas/keyboard.js';
 import { setupPanelButtons, addNode } from './canvas/operations.js';
 import { setupExport } from './utils/export.js';
-import { initAuth } from './auth/index.js';
+import { initAuth, backToPicker } from './auth/index.js';
 import { setSyncStatus } from './utils/sync-status.js';
+import { btnBack } from './dom.js';
 
 // Wire save → debounced cloud push
 onSave(markDirty);
@@ -29,6 +31,7 @@ setupInteractions();
 setupKeyboard();
 setupPanelButtons();
 setupExport();
+btnBack.addEventListener('click', backToPicker);
 
 if (supabase) {
   // Full mode: auth required, cloud sync enabled

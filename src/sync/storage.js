@@ -12,8 +12,9 @@ export function saveLocal() {
   try {
     const data = {
       ...getCleanData(),
-      graphId: state.graphId || null,
-      version: state.version || 0,
+      graphId:    state.graphId    || null,
+      graphTitle: state.graphTitle || 'Untitled',
+      version:    state.version    || 0,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch (e) {

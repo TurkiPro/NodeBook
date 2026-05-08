@@ -10,8 +10,12 @@
 </head>
 <body>
 
-<div class="topbar">
-  <div class="brand">node<span>·</span>book</div>
+<div class="topbar" id="topbar">
+  <div class="topbar-left">
+    <button class="btn-back" id="btn-back" style="display:none" title="Back to graphs">←</button>
+    <div class="brand">node<span>·</span>book</div>
+    <span class="topbar-graph-title" id="topbar-graph-title"></span>
+  </div>
   <div class="toolbar">
     <span class="hint">dbl-click to add · shift+drag to connect · ctrl+drag to multi-select · F to fit</span>
     <span class="sync-chip" id="sync-chip" style="display:none">
@@ -32,7 +36,7 @@
   </div>
 </div>
 
-<div class="main">
+<div class="main" id="main">
   <div class="canvas-wrap" id="canvas-wrap">
     <svg id="edges"></svg>
     <div id="canvas"></div>
@@ -79,6 +83,9 @@
 
 <!-- Auth overlay — populated by auth/ui.js when user is logged out -->
 <div id="auth-root"></div>
+
+<!-- Graph picker — shown after login, before opening a graph -->
+<div id="picker-root"></div>
 
 <script type="module" src="/src/main.js"></script>
 </body>
