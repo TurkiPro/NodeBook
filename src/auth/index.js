@@ -55,8 +55,8 @@ async function onLoggedIn(user) {
     render();
   }
 
-  // Fetch cloud and merge
-  try {
+  // Fetch cloud and merge — retry once after 5s to handle projects waking from pause
+  const trySync = async () => {
     const remote = await fetchGraph(user.id);
     if (remote) {
       const updated = mergeFetch(remote);
@@ -74,10 +74,19 @@ async function onLoggedIn(user) {
       }
     }
     setSyncStatus('synced');
+  };
+
+  try {
+    await trySync();
   } catch {
-    showToast('Offline — using local copy');
     setSyncStatus('offline');
     if (Object.keys(state.nodes).length === 0) render();
+    // Retry once after 5 seconds — Supabase free tier needs time to wake from pause
+    setTimeout(async () => {
+      try {
+        await trySync();
+      } catch {}
+    }, 5000);
   }
 
   // Flush any writes that happened before login

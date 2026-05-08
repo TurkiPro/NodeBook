@@ -21,8 +21,10 @@ export async function signOut() {
       new Promise((_, reject) => setTimeout(() => reject(), 3000))
     ]);
   } catch {}
-  // Wipe all local state regardless of whether the API call succeeded
-  localStorage.clear();
+  // Clear only session tokens — nodebook.v1 (local graph cache) is deliberately kept
+  Object.keys(localStorage)
+    .filter(k => k.startsWith('sb-'))
+    .forEach(k => localStorage.removeItem(k));
   sessionStorage.clear();
   window.location.href = '/';
 }
