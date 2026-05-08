@@ -14,7 +14,7 @@ let collapsedFolders = new Set();
 export async function showPicker(user, onSelect) {
   currentUser   = user;
   onSelectGraph = onSelect;
-  pickerRoot.style.display = '';
+  pickerRoot.style.display = 'block';
   pickerRoot.innerHTML = '<div class="picker-loading">Loading your graphs…</div>';
   await refreshPicker();
 }
