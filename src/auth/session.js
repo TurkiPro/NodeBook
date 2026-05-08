@@ -19,7 +19,8 @@ export async function signOut() {
   Object.keys(localStorage)
     .filter(k => k.startsWith('sb-'))
     .forEach(k => localStorage.removeItem(k));
-  window.location.reload();
+  // Use href instead of reload() so the browser fetches fresh HTML rather than serving from cache
+  window.location.href = '/';
 }
 
 export async function signInWithGoogle() {
