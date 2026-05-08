@@ -85,15 +85,14 @@ export async function initAuth() {
 }
 
 async function onLoggedIn(user) {
-  // Mark this browser as having seen the app — prevents welcome node from appearing on re-login
-  localStorage.setItem('nodebook.seen', '1');
-
   // User is authenticated — show Connected immediately; pushGraph owns status from here
   setSyncStatus('synced');
 
   // Render cached local data immediately for instant startup
   const local = loadLocal();
   if (local) {
+    // Having local data means the user has been here before on this browser
+    if (Object.keys(local.nodes || {}).length > 0) localStorage.setItem('nodebook.seen', '1');
     resetState(local);
     render();
   }
@@ -102,13 +101,15 @@ async function onLoggedIn(user) {
   const trySync = async () => {
     const remote = await fetchGraph(user.id);
     if (remote) {
+      // A row exists in Supabase — definitively not a new user
+      localStorage.setItem('nodebook.seen', '1');
       const updated = mergeFetch(remote);
       if (updated) {
         render();
         showToast('Synced');
       }
     } else if (Object.keys(state.nodes).length === 0 && !localStorage.getItem('nodebook.seen')) {
-      // Genuinely new user — create welcome node once, then never again
+      // No local data, no remote row, never seen before → genuinely new user
       localStorage.setItem('nodebook.seen', '1');
       const id = addNode(280, 200, 'Start here');
       if (state.nodes[id]) {

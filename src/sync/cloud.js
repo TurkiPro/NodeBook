@@ -23,7 +23,6 @@ export async function pushGraph() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return false;
 
-  setSyncStatus('pending');
   const userId    = session.user.id;
   const graphData = getCleanData();
 
@@ -64,7 +63,9 @@ export async function pushGraph() {
     setSyncStatus('synced');
     return true;
   } catch {
-    setSyncStatus('offline');
+    // Only show Offline when the browser has no network — Supabase project
+    // pausing is a transient failure; the queue will retry automatically.
+    if (!navigator.onLine) setSyncStatus('offline');
     return false;
   }
 }

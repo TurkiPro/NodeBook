@@ -8,7 +8,7 @@ import './styles/dialog.css';
 import { state, resetState } from './canvas/state.js';
 import { render } from './canvas/render.js';
 import { loadLocal, save, onSave } from './sync/storage.js';
-import { markDirty, onFlush, flush } from './sync/queue.js';
+import { markDirty, onFlush, flush, cancelRetry } from './sync/queue.js';
 import { pushGraph } from './sync/cloud.js';
 import { supabase } from './sync/client.js';
 import { setupInteractions } from './canvas/interactions.js';
@@ -22,7 +22,7 @@ import { setSyncStatus } from './utils/sync-status.js';
 onSave(markDirty);
 onFlush(pushGraph);
 window.addEventListener('online', flush);
-window.addEventListener('offline', () => setSyncStatus('offline'));
+window.addEventListener('offline', () => { cancelRetry(); setSyncStatus('offline'); });
 
 // Register all event listeners once
 setupInteractions();
