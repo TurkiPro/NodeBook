@@ -20,6 +20,9 @@ CREATE POLICY "owner_only" ON graphs
 -- Speeds up real-time subscription filter
 CREATE INDEX IF NOT EXISTS graphs_user_id_idx ON graphs(user_id);
 
+-- Grant table-level access to the authenticated role (required alongside RLS)
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.graphs TO authenticated;
+
 -- Keep updated_at current automatically
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER AS $$

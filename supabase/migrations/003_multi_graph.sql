@@ -13,5 +13,8 @@ CREATE POLICY "owner_only" ON folders
 
 CREATE INDEX IF NOT EXISTS folders_user_id_idx ON folders(user_id);
 
+-- Grant table-level access to the authenticated role
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.folders TO authenticated;
+
 -- Allow multiple graphs per user, each optionally inside a folder
 ALTER TABLE graphs ADD COLUMN IF NOT EXISTS folder_id UUID REFERENCES folders(id) ON DELETE SET NULL;
