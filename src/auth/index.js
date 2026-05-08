@@ -48,6 +48,9 @@ export function initAuth() {
 }
 
 async function onLoggedIn(user) {
+  // User is authenticated — show Connected immediately; pushGraph owns status from here
+  setSyncStatus('synced');
+
   // Render cached local data immediately for instant startup
   const local = loadLocal();
   if (local) {
@@ -55,7 +58,7 @@ async function onLoggedIn(user) {
     render();
   }
 
-  // Fetch cloud and merge — retry once after 5s to handle projects waking from pause
+  // Fetch cloud and merge — retry up to 3 times to handle projects waking from pause
   const trySync = async () => {
     const remote = await fetchGraph(user.id);
     if (remote) {
@@ -73,21 +76,17 @@ async function onLoggedIn(user) {
         render();
       }
     }
-    setSyncStatus('synced');
   };
 
-  try {
-    await trySync();
-  } catch {
-    setSyncStatus('offline');
-    if (Object.keys(state.nodes).length === 0) render();
-    // Retry once after 5 seconds — Supabase free tier needs time to wake from pause
-    setTimeout(async () => {
-      try {
-        await trySync();
-      } catch {}
-    }, 5000);
-  }
+  const runWithRetry = async (delays = [5000, 15000]) => {
+    try {
+      await trySync();
+    } catch {
+      if (delays.length === 0) return;
+      setTimeout(() => runWithRetry(delays.slice(1)), delays[0]);
+    }
+  };
+  runWithRetry();
 
   // Flush any writes that happened before login
   if (hasPending()) await flush();
