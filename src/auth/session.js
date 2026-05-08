@@ -2,7 +2,12 @@ import { supabase } from '../sync/client.js';
 
 export async function signIn(email, password) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) throw error;
+  if (error) {
+    const msg = error.message?.toLowerCase() || '';
+    if (msg.includes('not confirmed')) error._tag = 'email_not_confirmed';
+    else if (msg.includes('invalid') || error.status === 400) error._tag = 'invalid_credentials';
+    throw error;
+  }
 }
 
 export async function signUp(email, password) {

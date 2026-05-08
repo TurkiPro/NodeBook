@@ -64,6 +64,21 @@
   color: var(--ink);
 }
 
+.auth-message {
+  font-size: 11px;
+  min-height: 14px;
+  margin: -8px 0 -4px;
+  padding: 0 2px;
+  line-height: 1.5;
+  color: transparent;
+}
+.auth-message--info {
+  color: var(--accent);
+}
+.auth-message--warn {
+  color: var(--ink-dim);
+}
+
 .auth-form {
   display: flex;
   flex-direction: column;

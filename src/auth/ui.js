@@ -15,6 +15,7 @@ export function showAuthForm() {
           <button class="auth-tab active" data-tab="login">Sign in</button>
           <button class="auth-tab" data-tab="signup">Create account</button>
         </div>
+        <p class="auth-message" id="auth-message"></p>
         <div class="auth-form">
           <input type="email"    id="auth-email"    placeholder="Email"    autocomplete="email">
           <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password">
@@ -33,31 +34,46 @@ export function showAuthForm() {
 
   let mode = 'login';
 
-  const emailEl   = authRoot.querySelector('#auth-email');
-  const passEl    = authRoot.querySelector('#auth-password');
-  const confirmEl = authRoot.querySelector('#auth-confirm');
-  const matchEl   = authRoot.querySelector('#pw-match');
+  const emailEl    = authRoot.querySelector('#auth-email');
+  const passEl     = authRoot.querySelector('#auth-password');
+  const confirmEl  = authRoot.querySelector('#auth-confirm');
+  const matchEl    = authRoot.querySelector('#pw-match');
   const confirmRow = authRoot.querySelector('#auth-confirm-row');
   const submitBtn  = authRoot.querySelector('#auth-submit');
+  const msgEl      = authRoot.querySelector('#auth-message');
+
+  function showAuthMessage(text, type = 'info') {
+    msgEl.textContent = text;
+    msgEl.className = `auth-message auth-message--${type}`;
+  }
+
+  function clearAuthMessage() {
+    msgEl.textContent = '';
+    msgEl.className = 'auth-message';
+  }
+
+  function switchTab(tabName) {
+    mode = tabName;
+    authRoot.querySelectorAll('.auth-tab').forEach(t =>
+      t.classList.toggle('active', t.dataset.tab === tabName)
+    );
+    submitBtn.textContent = mode === 'login' ? 'Sign in' : 'Create account';
+    passEl.autocomplete = mode === 'signup' ? 'new-password' : 'current-password';
+
+    if (mode === 'signup') {
+      confirmRow.classList.add('visible');
+    } else {
+      confirmRow.classList.remove('visible');
+      confirmEl.value = '';
+      matchEl.textContent = '';
+      matchEl.className = 'pw-match';
+      passEl.classList.remove('pw-ok');
+      confirmEl.classList.remove('pw-ok');
+    }
+  }
 
   authRoot.querySelectorAll('.auth-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      mode = tab.dataset.tab;
-      authRoot.querySelectorAll('.auth-tab').forEach(t => t.classList.toggle('active', t === tab));
-      submitBtn.textContent = mode === 'login' ? 'Sign in' : 'Create account';
-      passEl.autocomplete = mode === 'signup' ? 'new-password' : 'current-password';
-
-      if (mode === 'signup') {
-        confirmRow.classList.add('visible');
-      } else {
-        confirmRow.classList.remove('visible');
-        confirmEl.value = '';
-        matchEl.textContent = '';
-        matchEl.className = 'pw-match';
-        passEl.classList.remove('pw-ok');
-        confirmEl.classList.remove('pw-ok');
-      }
-    });
+    tab.addEventListener('click', () => { clearAuthMessage(); switchTab(tab.dataset.tab); });
   });
 
   function checkMatch() {
@@ -100,6 +116,7 @@ export function showAuthForm() {
 
     submitBtn.textContent = '…';
     submitBtn.disabled = true;
+    clearAuthMessage();
     try {
       if (mode === 'login') {
         await signIn(email, password);
@@ -108,9 +125,18 @@ export function showAuthForm() {
         showConfirmEmail(email);
       }
     } catch (e) {
-      showToast(e.message || 'Auth failed');
       submitBtn.textContent = mode === 'login' ? 'Sign in' : 'Create account';
       submitBtn.disabled = false;
+
+      if (mode === 'login' && e._tag === 'invalid_credentials') {
+        switchTab('signup');
+        showAuthMessage('No account found with this email — sign up to get started.', 'info');
+        passEl.value = '';
+      } else if (mode === 'login' && e._tag === 'email_not_confirmed') {
+        showAuthMessage('Check your inbox — you need to verify your email before signing in.', 'warn');
+      } else {
+        showToast(e.message || 'Auth failed');
+      }
     }
   });
 }
