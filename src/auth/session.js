@@ -14,12 +14,16 @@ export async function signUp(email, password) {
 }
 
 export async function signOut() {
-  try { await supabase.auth.signOut(); } catch {}
-  // Force-clear cached session even if the API call failed (e.g. project paused)
-  Object.keys(localStorage)
-    .filter(k => k.startsWith('sb-'))
-    .forEach(k => localStorage.removeItem(k));
-  // Use href instead of reload() so the browser fetches fresh HTML rather than serving from cache
+  // Race signOut against a 3s timeout — when the project is paused the fetch hangs indefinitely
+  try {
+    await Promise.race([
+      supabase.auth.signOut(),
+      new Promise((_, reject) => setTimeout(() => reject(), 3000))
+    ]);
+  } catch {}
+  // Wipe all local state regardless of whether the API call succeeded
+  localStorage.clear();
+  sessionStorage.clear();
   window.location.href = '/';
 }
 
