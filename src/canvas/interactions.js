@@ -2,7 +2,7 @@ import { state, drag, setDrag, pan, setPan, connect, setConnect, elMap,
          multiSelect, setMultiSelect, setSelectedId } from './state.js';
 import { render, screenToWorld, applyTransform, curvePath } from './render.js';
 import { wrap, edgesSvg, panel } from '../dom.js';
-import { addNode, selectNode, showMultiPanel } from './operations.js';
+import { addNode, selectNode, showMultiPanel, deselect } from './operations.js';
 import { save } from '../sync/storage.js';
 import { showConfirm } from '../utils/dialog.js';
 
@@ -152,9 +152,14 @@ function onMouseUp(e) {
   }
 
   if (pan) {
+    const moved = Math.abs(e.clientX - pan.sx) > 3 || Math.abs(e.clientY - pan.sy) > 3;
     setPan(null);
     wrap.classList.remove('panning');
-    save();
+    if (moved) {
+      save();
+    } else {
+      deselect();
+    }
   }
 
   if (connect) {

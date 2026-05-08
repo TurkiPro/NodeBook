@@ -12,8 +12,12 @@ export function showAuthForm() {
           <button class="auth-tab" data-tab="signup">Create account</button>
         </div>
         <div class="auth-form">
-          <input type="email" id="auth-email" placeholder="Email" autocomplete="email">
+          <input type="email"    id="auth-email"    placeholder="Email"    autocomplete="email">
           <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password">
+          <div class="auth-confirm-row" id="auth-confirm-row">
+            <input type="password" id="auth-confirm" placeholder="Confirm password" autocomplete="new-password">
+            <p class="pw-match" id="pw-match"></p>
+          </div>
           <button class="auth-submit" id="auth-submit">Sign in</button>
         </div>
       </div>
@@ -22,23 +26,73 @@ export function showAuthForm() {
 
   let mode = 'login';
 
+  const emailEl   = authRoot.querySelector('#auth-email');
+  const passEl    = authRoot.querySelector('#auth-password');
+  const confirmEl = authRoot.querySelector('#auth-confirm');
+  const matchEl   = authRoot.querySelector('#pw-match');
+  const confirmRow = authRoot.querySelector('#auth-confirm-row');
+  const submitBtn  = authRoot.querySelector('#auth-submit');
+
   authRoot.querySelectorAll('.auth-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       mode = tab.dataset.tab;
       authRoot.querySelectorAll('.auth-tab').forEach(t => t.classList.toggle('active', t === tab));
-      authRoot.querySelector('#auth-submit').textContent =
-        mode === 'login' ? 'Sign in' : 'Create account';
+      submitBtn.textContent = mode === 'login' ? 'Sign in' : 'Create account';
+      passEl.autocomplete = mode === 'signup' ? 'new-password' : 'current-password';
+
+      if (mode === 'signup') {
+        confirmRow.classList.add('visible');
+      } else {
+        confirmRow.classList.remove('visible');
+        confirmEl.value = '';
+        matchEl.textContent = '';
+        matchEl.className = 'pw-match';
+        passEl.classList.remove('pw-ok');
+        confirmEl.classList.remove('pw-ok');
+      }
     });
   });
 
-  authRoot.querySelector('#auth-submit').addEventListener('click', async () => {
-    const email    = authRoot.querySelector('#auth-email').value.trim();
-    const password = authRoot.querySelector('#auth-password').value;
+  function checkMatch() {
+    if (mode !== 'signup' || !confirmEl.value) {
+      matchEl.textContent = '';
+      matchEl.className = 'pw-match';
+      passEl.classList.remove('pw-ok');
+      confirmEl.classList.remove('pw-ok');
+      return;
+    }
+
+    if (passEl.value === confirmEl.value) {
+      passEl.classList.add('pw-ok');
+      confirmEl.classList.add('pw-ok');
+      // Force re-animation by removing then re-adding the class
+      matchEl.className = 'pw-match';
+      matchEl.textContent = '';
+      void matchEl.offsetWidth;
+      matchEl.textContent = '✦  you\'re all set';
+      matchEl.className = 'pw-match ok';
+    } else {
+      passEl.classList.remove('pw-ok');
+      confirmEl.classList.remove('pw-ok');
+      matchEl.textContent = confirmEl.value ? 'doesn\'t match yet' : '';
+      matchEl.className = 'pw-match' + (confirmEl.value ? ' err' : '');
+    }
+  }
+
+  passEl.addEventListener('input', checkMatch);
+  confirmEl.addEventListener('input', checkMatch);
+
+  submitBtn.addEventListener('click', async () => {
+    const email    = emailEl.value.trim();
+    const password = passEl.value;
     if (!email || !password) return showToast('Enter email and password');
 
-    const btn = authRoot.querySelector('#auth-submit');
-    btn.textContent = '…';
-    btn.disabled = true;
+    if (mode === 'signup' && password !== confirmEl.value) {
+      return showToast('Passwords don\'t match');
+    }
+
+    submitBtn.textContent = '…';
+    submitBtn.disabled = true;
     try {
       if (mode === 'login') {
         await signIn(email, password);
@@ -48,8 +102,8 @@ export function showAuthForm() {
       }
     } catch (e) {
       showToast(e.message || 'Auth failed');
-      btn.textContent = mode === 'login' ? 'Sign in' : 'Create account';
-      btn.disabled = false;
+      submitBtn.textContent = mode === 'login' ? 'Sign in' : 'Create account';
+      submitBtn.disabled = false;
     }
   });
 }
