@@ -4,14 +4,14 @@
   inset: 0;
   background: var(--bg);
   z-index: 100;
-  overflow-y: auto;
   display: none;
+  overflow: hidden;
 }
 
 .picker {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  height: 100%;
 }
 
 .picker-loading {
@@ -30,15 +30,33 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 48px;
+  padding: 0 24px 0 16px;
   height: 60px;
   border-bottom: 1px solid var(--line);
   background: var(--bg-2);
-  position: sticky;
-  top: 0;
+  flex-shrink: 0;
   z-index: 10;
+}
+
+.picker-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pk-sidebar-toggle {
+  background: transparent;
+  border: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-size: 15px;
+  padding: 5px 8px;
+  border-radius: 3px;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
   flex-shrink: 0;
 }
+.pk-sidebar-toggle:hover { color: var(--ink); background: var(--bg-3); }
 
 .picker-brand {
   font-family: 'Fraunces', serif;
@@ -86,13 +104,93 @@
 .pk-btn--danger:hover { background: rgba(199,84,80,0.08); border-color: rgba(199,84,80,0.3); }
 .pk-btn--lg     { padding: 10px 24px; font-size: 12px; }
 
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+.picker-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.picker-main {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+.picker-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--bg-2);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.2s ease;
+}
+.picker-sidebar.collapsed { width: 0; }
+
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 0;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  color: var(--ink-dim);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sidebar-item:hover { background: var(--bg-3); color: var(--ink); }
+.sidebar-item.active {
+  background: var(--bg-3);
+  color: var(--ink);
+  border-left: 2px solid var(--accent);
+  padding-left: 14px;
+}
+
+.sidebar-label { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-count {
+  font-size: 9px;
+  color: var(--ink-faint);
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+.sidebar-folder-icon {
+  font-size: 9px;
+  color: var(--ink-faint);
+  flex-shrink: 0;
+}
+
+.sidebar-footer {
+  border-top: 1px solid var(--line);
+  padding: 6px 0;
+  flex-shrink: 0;
+}
+.sidebar-item--action {
+  color: var(--accent-dim);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.sidebar-item--action:hover { color: var(--accent); background: transparent; }
+
 /* ── Body ────────────────────────────────────────────────────────────────── */
 .picker-body {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 40px 48px 120px;
-  width: 100%;
-  flex: 1;
+  padding: 32px 40px 120px;
+  max-width: 1040px;
 }
 
 /* ── Section header ──────────────────────────────────────────────────────── */
@@ -384,11 +482,11 @@
   background: var(--bg-2);
   border-top: 1px solid var(--line-2);
   padding: 12px 48px;
-  display: flex;
   align-items: center;
   justify-content: space-between;
   z-index: 110;
   box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
+  /* display is controlled entirely by JS (style.display = 'flex' | 'none') */
 }
 
 .picker-toolbar #pk-sel-count {

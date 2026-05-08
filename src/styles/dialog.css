@@ -44,6 +44,21 @@
   justify-content: flex-end;
 }
 
+.dialog-input {
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 9px 12px;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+  width: 100%;
+}
+.dialog-input:focus        { border-color: var(--accent-dim); }
+.dialog-input::placeholder { color: var(--ink-faint); }
+
 .btn-destructive {
   color: var(--danger) !important;
   border-color: var(--danger) !important;
