@@ -60,16 +60,12 @@ npm run db:migrate          # remote
 npm run db:migrate:local    # local dev copy
 ```
 
-### 3. Configure environment variables
+### 3. Environment variables
 
-Create `.env.local` in the project root:
+None required. Cloud mode is the default, so any checkout builds a working app;
+there are no secrets on the client, since auth is a same-origin HttpOnly cookie.
 
-```env
-VITE_CLOUD=1
-```
-
-Without it the app runs local-only — no account, everything in `localStorage`.
-There are no secrets on the client: auth is a same-origin HttpOnly cookie.
+Local-only mode is the opt-in, and `serve.mjs` (below) sets it for you.
 
 ### 4. Run locally
 
@@ -99,9 +95,15 @@ deploy. Two repository secrets are required:
 | `CLOUDFLARE_API_TOKEN` | Cloudflare → My Profile → API Tokens → "Edit Cloudflare Workers" template, **plus** a `D1 → Edit` permission |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard URL, or `npx wrangler whoami` |
 
-The workflow sets `VITE_CLOUD=1` explicitly, because `.env.local` is gitignored
-and a build without it silently produces a local-only app. A guard step greps the
-bundle for auth/picker markers and fails the build if they are missing.
+`wrangler.toml` carries a `[build]` command, so `wrangler deploy` produces
+`dist/` itself — `dist/` is gitignored, and without this any checkout-and-deploy
+environment fails with *"the directory specified by the assets.directory field
+does not exist"*. That also means Cloudflare's own git integration needs no
+build command configured in the dashboard.
+
+**GitHub Actions is the only deploy pipeline.** Do not connect this repo under
+Workers → Builds in the Cloudflare dashboard as well — both would fire on every
+push, and Workers Builds does not apply D1 migrations.
 
 ---
 
@@ -213,7 +215,7 @@ Consequences worth knowing:
 
 ## Running without the cloud
 
-If `VITE_CLOUD` is not set to `1`, the app runs in local-only mode — no account required, everything stored in `localStorage`, no Worker needed. Useful for self-hosted or air-gapped setups.
+Build with `VITE_LOCAL_ONLY=1` and the app runs with no account, no Worker and no network — everything stays in `localStorage`. Useful for self-hosted or air-gapped setups, and it's what `.claude/skills/run-nodebook/serve.mjs` uses for driving the canvas without a backend.
 
 ---
 

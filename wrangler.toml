@@ -3,6 +3,12 @@ main = "worker/index.js"
 compatibility_date = "2025-09-01"
 compatibility_flags = ["nodejs_compat"]
 
+# dist/ is gitignored, so any checkout-and-deploy environment (Cloudflare's own
+# build container, a fresh CI runner) has to produce it first. Doing it here
+# rather than in a dashboard field means every deploy path builds identically.
+[build]
+command = "npm run build"
+
 # Serves the Vite build. `single-page-application` replaces the rewrite rule
 # vercel.json used to provide: any non-asset path falls back to index.html.
 [assets]

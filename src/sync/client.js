@@ -1,11 +1,18 @@
 // Thin fetch wrapper around the Cloudflare Worker API.
 //
-// Cloud mode is opt-in: with no VITE_CLOUD the app runs local-only — no account,
-// no network, graph in localStorage. Production builds set VITE_CLOUD=1.
+// Cloud mode is the DEFAULT, and local-only is the thing you opt into. That
+// direction matters: a build that forgets a flag still ships a working app.
+// The reverse — cloud gated behind a flag — meant any build environment without
+// .env.local (Cloudflare's build container, a fresh CI runner) silently emitted
+// a bundle with auth and sync tree-shaken out, which deploys perfectly happily
+// and is only obvious to a user staring at a missing login screen.
+//
+// Local-only is set by .claude/skills/run-nodebook/serve.mjs, which injects the
+// flag via Vite's `define` rather than relying on an env file being absent.
 
 const BASE = import.meta.env.VITE_API_URL || '/api';
 
-export const cloudEnabled = import.meta.env.VITE_CLOUD === '1';
+export const cloudEnabled = import.meta.env.VITE_LOCAL_ONLY !== '1';
 
 /** Identifies this tab so the realtime room can skip echoing our own writes. */
 export const clientId = crypto.randomUUID();

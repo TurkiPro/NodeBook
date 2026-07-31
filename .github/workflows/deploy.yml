@@ -1,3 +1,9 @@
+# The one and only deploy pipeline for this project.
+#
+# Do NOT also connect this repo under Workers -> Builds in the Cloudflare
+# dashboard: both would fire on every push, racing each other, and Workers
+# Builds does not apply D1 migrations — so a schema change could land after the
+# code that depends on it.
 name: Deploy
 
 on:
@@ -26,21 +32,21 @@ jobs:
 
       - run: npm ci
 
-      # .env.local is gitignored, so VITE_CLOUD has to be supplied here.
-      # Without it Vite tree-shakes the entire auth/picker/sync path out of the
-      # bundle (44 kB -> 20 kB) and the deploy silently becomes a local-only app
-      # with no login and no sync. The guard below is what catches that.
+      # wrangler.toml's [build] hook means `wrangler deploy` would build anyway.
+      # This step exists so the guard below runs *before* anything is uploaded —
+      # don't delete it as a duplicate. It costs ~2s.
       - name: Build
         run: npm run build
-        env:
-          VITE_CLOUD: '1'
 
+      # Cloud mode is the default, so this should never fire — it exists to catch
+      # a regression that reintroduces a flag-gated build. A local-only bundle has
+      # auth, picker and sync tree-shaken out (44 kB -> 20 kB) and deploys happily.
       - name: Verify this is a cloud build
         run: |
           missing=0
           for marker in 'nodebook|v1|' '/auth/signin' 'pk-new'; do
             if ! grep -rqF -- "$marker" dist/assets/; then
-              echo "::error::Missing '$marker' in dist/ — this is a local-only bundle. Is VITE_CLOUD set?"
+              echo "::error::Missing '$marker' in dist/ — this is a local-only bundle."
               missing=1
             fi
           done

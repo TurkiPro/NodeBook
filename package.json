@@ -7,10 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "dev:cloud": "npm run build && wrangler dev --port 8788",
+    "dev:cloud": "wrangler dev --port 8788",
     "db:migrate:local": "wrangler d1 migrations apply nodebook --local",
     "db:migrate": "wrangler d1 migrations apply nodebook --remote",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
     "jspdf": "^4.2.1"
