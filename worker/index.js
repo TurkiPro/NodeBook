@@ -1,8 +1,8 @@
 // Nodebook API. Serves the Vite build from [assets] and everything under /api.
 
 import {
-  hashPassword, verifyPassword, createSession, destroySession, currentUser,
-  EMAIL_RE, MIN_PASSWORD,
+  parseAuthKey, hashAuthKey, verifyAuthKey,
+  createSession, destroySession, currentUser, EMAIL_RE,
 } from './auth.js';
 import * as G from './graphs.js';
 
@@ -41,13 +41,14 @@ async function route(request, env, url) {
 
   // ── Auth (unauthenticated) ───────────────────────────────────────────────
   if (path === '/auth/signup' && method === 'POST') {
-    const { email, password } = await readJson(request);
+    const { email, authKey } = await readJson(request);
     const addr = String(email || '').trim().toLowerCase();
+    const key  = parseAuthKey(authKey);
 
     if (!EMAIL_RE.test(addr)) return fail(400, 'invalid_email', 'Enter a valid email address.');
-    if (String(password || '').length < MIN_PASSWORD) {
-      return fail(400, 'weak_password', `Password must be at least ${MIN_PASSWORD} characters.`);
-    }
+    // Password length is enforced in src/auth/crypto.js — by design this Worker
+    // receives only the derived key and cannot see the password behind it.
+    if (!key) return fail(400, 'bad_auth_key', 'Malformed credentials.');
 
     const existing = await env.DB.prepare('SELECT id FROM users WHERE lower(email) = ?')
       .bind(addr).first();
@@ -56,7 +57,7 @@ async function route(request, env, url) {
     const id = crypto.randomUUID();
     await env.DB.prepare(
       'INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)'
-    ).bind(id, addr, await hashPassword(password), new Date().toISOString()).run();
+    ).bind(id, addr, await hashAuthKey(key), new Date().toISOString()).run();
 
     // No email confirmation step — the account is live immediately.
     const cookie = await createSession(env, request, id);
@@ -64,23 +65,25 @@ async function route(request, env, url) {
   }
 
   if (path === '/auth/signin' && method === 'POST') {
-    const { email, password } = await readJson(request);
+    const { email, authKey } = await readJson(request);
     const addr = String(email || '').trim().toLowerCase();
+    const key  = parseAuthKey(authKey);
+    if (!key) return fail(400, 'bad_auth_key', 'Malformed credentials.');
 
     const user = await env.DB.prepare(
       'SELECT id, email, password_hash FROM users WHERE lower(email) = ?'
     ).bind(addr).first();
-    // Same response whether the address is unknown or the password is wrong —
+    // Same response whether the address is unknown or the key is wrong —
     // otherwise this endpoint enumerates registered emails.
     if (!user) return fail(401, 'invalid_credentials', 'Incorrect email or password.');
 
-    const { ok, needsRehash } = await verifyPassword(String(password || ''), user.password_hash);
+    const { ok, needsRehash } = await verifyAuthKey(key, user.password_hash);
     if (!ok) return fail(401, 'invalid_credentials', 'Incorrect email or password.');
 
-    // Stored below the current iteration count — upgrade it while we hold the plaintext.
+    // Stored at a different iteration count — restretch while we hold the key.
     if (needsRehash) {
       await env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
-        .bind(await hashPassword(password), user.id).run();
+        .bind(await hashAuthKey(key), user.id).run();
     }
 
     const cookie = await createSession(env, request, user.id);

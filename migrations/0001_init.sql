@@ -10,7 +10,8 @@
 CREATE TABLE IF NOT EXISTS users (
   id            TEXT PRIMARY KEY,
   email         TEXT NOT NULL,
-  -- "pbkdf2$<iterations>$<salt_b64>$<hash_b64>" — see worker/auth.js
+  -- "ckdf1$<iterations>$<salt_b64>$<hash_b64>" — a salted hash of the key the
+  -- browser derives in src/auth/crypto.js, never of a password. See worker/auth.js.
   password_hash TEXT NOT NULL,
   created_at    TEXT NOT NULL
 );

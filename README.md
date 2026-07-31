@@ -24,7 +24,7 @@ A visual note-taking app built around nodes and connections. Create nodes, write
 |---|---|
 | Frontend | Vanilla JS (no framework), Vite |
 | API | Cloudflare Worker (`worker/`) |
-| Auth | Email/password, PBKDF2 hashes, opaque session cookie |
+| Auth | Email/password, client-side key derivation, opaque session cookie |
 | Database | Cloudflare D1 (SQLite; JSON graph document per graph) |
 | Real-time | Durable Object per graph, WebSocket fan-out |
 | Hosting | Cloudflare Workers — one deploy serves `dist/` and `/api` |
@@ -89,6 +89,20 @@ npm run deploy              # vite build && wrangler deploy
 
 One Worker serves the built assets and the API.
 
+Pushes to `main` deploy automatically via
+[.github/workflows/deploy.yml](.github/workflows/deploy.yml) — it builds, runs
+the D1 migrations, then deploys. Pull requests build and are checked but never
+deploy. Two repository secrets are required:
+
+| Secret | Where to get it |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare → My Profile → API Tokens → "Edit Cloudflare Workers" template, **plus** a `D1 → Edit` permission |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard URL, or `npx wrangler whoami` |
+
+The workflow sets `VITE_CLOUD=1` explicitly, because `.env.local` is gitignored
+and a build without it silently produces a local-only app. A guard step greps the
+bundle for auth/picker markers and fails the build if they are missing.
+
 ---
 
 ## Project structure
@@ -96,7 +110,7 @@ One Worker serves the built assets and the API.
 ```
 worker/
 ├── index.js                # Router: /api/* here, everything else → static assets
-├── auth.js                 # PBKDF2 hashing, session cookies
+├── auth.js                 # Derived-key storage, session cookies
 ├── graphs.js               # Graph + folder CRUD, all scoped by user_id
 └── realtime.js             # GraphRoom Durable Object — WebSocket fan-out
 
@@ -120,6 +134,7 @@ src/
 ├── auth/
 │   ├── index.js            # Session probe → show canvas or auth form
 │   ├── ui.js               # Login/signup form (vanilla JS)
+│   ├── crypto.js           # PBKDF2 key derivation — the password stays here
 │   ├── session.js          # signIn, signUp, signOut
 │   └── pong.js             # Pong background animation on the auth screen
 ├── utils/
@@ -169,6 +184,30 @@ server-side, then asks the graph's Durable Object to fan the new revision out to
 every other connected socket.
 
 Conflict resolution is last-write-wins with version fencing: the higher `version` number wins. When the remote graph wins, a toast notifies the user. Offline writes queue in localStorage and flush automatically on reconnect.
+
+---
+
+## How auth works
+
+The password never leaves the browser. `src/auth/crypto.js` runs PBKDF2-HMAC-SHA256
+at 210,000 iterations (~27 ms) over a salt derived from the email address, and the
+API receives only the resulting 256-bit key. The Worker salts and hashes that key
+with 1,000 iterations before storing it.
+
+This is what lets full-strength stretching run on the Workers free plan, which
+allows 10 ms of CPU per request — doing 210k iterations in the Worker costs ~85 ms
+and would fail. Security does not suffer from the low server-side count: the value
+being stretched there is a uniformly random 256-bit key, not a guessable password,
+and anyone attacking a stolen database still pays the full 210k derivation per
+password guess.
+
+Consequences worth knowing:
+
+- The API takes `authKey`, not `password`; posting a password returns `bad_auth_key`.
+- Minimum password length is enforced client-side (`MIN_PASSWORD` in `src/auth/crypto.js`)
+  because the server cannot see the password.
+- Changing the salt recipe or iteration count in `crypto.js` invalidates every
+  stored credential — it is a breaking change, not a tuning knob.
 
 ---
 

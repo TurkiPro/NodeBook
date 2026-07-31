@@ -1,4 +1,5 @@
 import { api, cloudEnabled } from '../sync/client.js';
+import { deriveAuthKey, MIN_PASSWORD } from './crypto.js';
 
 // GoTrue's onAuthStateChange is gone; this is the replacement signal that
 // auth/index.js listens on to swap between the auth form and the picker.
@@ -17,13 +18,22 @@ export async function getSessionUser() {
 }
 
 export async function signIn(email, password) {
-  const { user } = await api('/auth/signin', { method: 'POST', body: { email, password } });
+  const authKey = await deriveAuthKey(email, password);
+  const { user } = await api('/auth/signin', { method: 'POST', body: { email, authKey } });
   listener?.(user);
 }
 
 export async function signUp(email, password) {
+  // The server never sees the password, so it cannot enforce a length floor —
+  // that check has to live here. ui.js switches on _tag to render the message.
+  if (String(password).length < MIN_PASSWORD) {
+    const err = new Error(`Password must be at least ${MIN_PASSWORD} characters.`);
+    err._tag = 'weak_password';
+    throw err;
+  }
+  const authKey = await deriveAuthKey(email, password);
   // No confirmation email — the Worker signs the new account straight in.
-  const { user } = await api('/auth/signup', { method: 'POST', body: { email, password } });
+  const { user } = await api('/auth/signup', { method: 'POST', body: { email, authKey } });
   listener?.(user);
 }
 

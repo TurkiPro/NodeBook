@@ -1,16 +1,21 @@
-// Password hashing + opaque session cookies.
+// Credential storage + opaque session cookies.
 //
-// One hash format: pbkdf2$<iterations>$<salt_b64>$<hash_b64>. Raising
-// PBKDF2_ITERATIONS later costs nothing — verifyPassword reads the iteration
-// count out of the stored string, and flags anything below the current setting
-// for a silent re-hash on the user's next sign-in.
-
-// OWASP 2023 floor for PBKDF2-HMAC-SHA256. Costs CPU, and Workers meters it:
-// measured on a dev box, 210k ≈ 30 ms, 100k ≈ 15 ms, 50k ≈ 7 ms. The Workers
-// FREE plan allows 10 ms CPU per invocation, so sign-in needs the paid plan
-// (30 s) at this setting. Lower it only with that trade-off in mind — it
-// weakens every password in the table.
-const PBKDF2_ITERATIONS = 210_000;
+// This Worker never receives a password. src/auth/crypto.js runs PBKDF2 at
+// 210k iterations in the browser and sends the resulting 256-bit key; all we do
+// is salt and hash that key before storing it.
+//
+// Why so few iterations here: stretching exists to make guessing a low-entropy
+// secret expensive. The value arriving at this endpoint is not low-entropy —
+// it is a uniformly random 256-bit key, which cannot be brute-forced at any
+// iteration count. Anyone with a stolen database still has to guess the
+// *password*, and every guess costs them the browser's full 210k derivation.
+// So the server-side stretch only needs to be non-trivial, not expensive.
+//
+// Measured in workerd (not Node — workerd's BoringSSL is ~3x slower, so never
+// benchmark this on the host and extrapolate): 1k ≈ 0.5 ms, well inside the
+// Workers free plan's 10 ms CPU per invocation.
+const SERVER_ITERATIONS = 1_000;
+const AUTH_KEY_BYTES    = 32;
 const SESSION_TTL_MS    = 30 * 24 * 60 * 60 * 1000;
 const COOKIE            = 'nb_session';
 
@@ -19,8 +24,8 @@ const enc = new TextEncoder();
 const b64  = (bytes) => btoa(String.fromCharCode(...bytes));
 const ub64 = (s)     => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 
-async function pbkdf2(password, salt, iterations) {
-  const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+async function pbkdf2(secret, salt, iterations) {
+  const key = await crypto.subtle.importKey('raw', secret, 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
     { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' }, key, 256);
   return new Uint8Array(bits);
@@ -34,18 +39,33 @@ function equal(a, b) {
   return diff === 0;
 }
 
-export async function hashPassword(password) {
+/**
+ * Decode the client's derived key. Rejects anything that is not exactly 32
+ * bytes of base64, so a caller cannot downgrade the scheme by posting a short
+ * or empty value.
+ * @returns {Uint8Array | null}
+ */
+export function parseAuthKey(value) {
+  if (typeof value !== 'string' || value.length > 64) return null;
+  let bytes;
+  try { bytes = ub64(value); } catch { return null; }
+  return bytes.length === AUTH_KEY_BYTES ? bytes : null;
+}
+
+export async function hashAuthKey(authKey) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
-  const hash = await pbkdf2(password, salt, PBKDF2_ITERATIONS);
-  return `pbkdf2$${PBKDF2_ITERATIONS}$${b64(salt)}$${b64(hash)}`;
+  const hash = await pbkdf2(authKey, salt, SERVER_ITERATIONS);
+  return `ckdf1$${SERVER_ITERATIONS}$${b64(salt)}$${b64(hash)}`;
 }
 
 /** @returns {{ok: boolean, needsRehash: boolean}} */
-export async function verifyPassword(password, stored) {
-  if (!stored.startsWith('pbkdf2$')) return { ok: false, needsRehash: false };
+export async function verifyAuthKey(authKey, stored) {
+  if (!stored.startsWith('ckdf1$')) return { ok: false, needsRehash: false };
   const [, iter, salt, hash] = stored.split('$');
-  const got = await pbkdf2(password, ub64(salt), Number(iter));
-  return { ok: equal(got, ub64(hash)), needsRehash: Number(iter) < PBKDF2_ITERATIONS };
+  const got = await pbkdf2(authKey, ub64(salt), Number(iter));
+  // Any mismatch, not just a lower count, so changing SERVER_ITERATIONS in
+  // either direction migrates rows on next sign-in.
+  return { ok: equal(got, ub64(hash)), needsRehash: Number(iter) !== SERVER_ITERATIONS };
 }
 
 async function sha256hex(text) {
@@ -104,4 +124,3 @@ export async function currentUser(env, request) {
 }
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-export const MIN_PASSWORD = 8;
