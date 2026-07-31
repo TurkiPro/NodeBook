@@ -1,6 +1,7 @@
 import { api, socketUrl, cloudEnabled } from './client.js';
 import { state, getCleanData } from '../canvas/state.js';
 import { setSyncStatus } from '../utils/sync-status.js';
+import { showToast } from '../utils/toast.js';
 import { saveLocal } from './storage.js';
 
 // ── Graph list / CRUD ──────────────────────────────────────────────────────
@@ -12,13 +13,20 @@ export async function listGraphs(_userId) {
   return api('/graphs');
 }
 
+/**
+ * @returns the graph, or null only when the server confirms it does not exist.
+ * Throws on every other failure — a network blip must not be reported as "empty
+ * graph", because the caller renders that as a blank canvas and the next
+ * autosave would push the blank over the real data.
+ */
 export async function fetchGraphById(graphId) {
   if (!cloudEnabled) return null;
   try {
     const g = await api(`/graphs/${graphId}`);
     return { ...g.data, graphId: g.id, graphTitle: g.title, version: g.version };
-  } catch {
-    return null;
+  } catch (e) {
+    if (e.status === 404) return null;
+    throw e;
   }
 }
 
@@ -39,11 +47,10 @@ export async function deleteGraphs(ids) {
 
 export async function listFolders(_userId) {
   if (!cloudEnabled) return [];
-  try {
-    return await api('/folders');
-  } catch {
-    return [];
-  }
+  // Deliberately not swallowed: this used to return [] on any failure, which
+  // rendered every graph as ungrouped and looked exactly like "you have no
+  // folders". Let it throw so the picker shows its load-failed panel instead.
+  return api('/folders');
 }
 
 export async function createFolder(_userId, name = 'New Folder') {
@@ -65,25 +72,18 @@ export async function moveGraphsToFolder(ids, folderId) {
 
 // ── Active graph sync ──────────────────────────────────────────────────────
 
+/** @returns {true | false | 'fatal'} — see the contract in sync/queue.js */
 export async function pushGraph() {
-  if (!cloudEnabled) return false;
+  if (!cloudEnabled) return 'fatal';   // local-only: nothing to push, don't retry
 
   try {
-    if (state.graphId) {
-      // The server owns the version counter and returns the new value.
-      const { version } = await api(`/graphs/${state.graphId}`, {
-        method: 'PUT',
-        body: { data: getCleanData(), title: state.graphTitle || 'Untitled' },
-      });
-      state.version = version;
-      saveLocal();
-      setSyncStatus('synced');
-      return true;
+    let id = state.graphId;
+    if (!id) {
+      // Fallback — the picker normally creates the row before the canvas opens.
+      id = await createGraph(null, state.graphTitle || 'Untitled');
+      state.graphId = id;
     }
-
-    // Fallback — the picker normally creates the row before the canvas opens.
-    const id = await createGraph(null, state.graphTitle || 'Untitled');
-    state.graphId = id;
+    // The server owns the version counter and returns the new value.
     const { version } = await api(`/graphs/${id}`, {
       method: 'PUT',
       body: { data: getCleanData(), title: state.graphTitle || 'Untitled' },
@@ -93,9 +93,40 @@ export async function pushGraph() {
     setSyncStatus('synced');
     return true;
   } catch (e) {
-    if (e.status === 404) state.graphId = null;   // row deleted elsewhere
-    if (!navigator.onLine) setSyncStatus('offline');
-    return false;
+    return reportPushFailure(e);
+  }
+}
+
+function reportPushFailure(e) {
+  // The local copy is already in localStorage, so nothing is lost either way —
+  // what matters is that the user is told the cloud copy is behind.
+  switch (e.status) {
+    case 0:                                    // offline or unreachable
+      setSyncStatus(e._tag === 'offline' ? 'offline' : 'error', e.message);
+      return false;                            // worth retrying
+
+    case 401:
+      setSyncStatus('error', 'Your session expired.');
+      showToast('Session expired — reload and sign in to keep syncing');
+      return 'fatal';
+
+    case 404:
+      // Graph deleted from another device. Detach so the next push creates a
+      // fresh row instead of retrying a write that can never land.
+      state.graphId = null;
+      setSyncStatus('error', 'This graph no longer exists on the server.');
+      showToast('This graph was deleted elsewhere — your copy is local only');
+      return 'fatal';
+
+    case 400:
+    case 413:
+      setSyncStatus('error', e.message);
+      showToast(e.message || 'This graph could not be saved');
+      return 'fatal';
+
+    default:
+      setSyncStatus('error', e.message || 'Sync failed.');
+      return false;                            // 5xx and friends — retry
   }
 }
 
@@ -149,5 +180,6 @@ export function unsubscribeFromGraph() {
   closing = true;
   clearTimeout(retryTimer);
   clearInterval(keepalive);
+  retryDelay = 1000;          // otherwise the next graph inherits a 30 s backoff
   if (socket) { socket.close(); socket = null; }
 }

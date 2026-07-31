@@ -111,6 +111,14 @@
 .sync-dot--synced  { background: #6abf69; }
 .sync-dot--pending { background: var(--accent); }
 .sync-dot--offline { background: var(--danger); }
+.sync-dot--error   { background: var(--danger); animation: sync-error-pulse 1.4s ease-in-out infinite; }
+
+.sync-chip--error  { color: var(--danger); }
+
+@keyframes sync-error-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .35; }
+}
 
 /* Export dropdown */
 .btn-group {

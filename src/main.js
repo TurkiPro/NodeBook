@@ -20,11 +20,15 @@ import { initAuth, backToPicker } from './auth/index.js';
 import { setSyncStatus } from './utils/sync-status.js';
 import { btnBack } from './dom.js';
 
-// Wire save → debounced cloud push
-onSave(markDirty);
-onFlush(pushGraph);
-window.addEventListener('online', flush);
-window.addEventListener('offline', () => { cancelRetry(); setSyncStatus('offline'); });
+// Wire save → debounced cloud push. Only in cloud mode: wiring it unconditionally
+// meant local-only marked every edit dirty, so the status chip sat on "Saving…"
+// forever for a save that had already completed and was never going anywhere.
+if (cloudEnabled) {
+  onSave(markDirty);
+  onFlush(pushGraph);
+  window.addEventListener('online', flush);
+  window.addEventListener('offline', () => { cancelRetry(); setSyncStatus('offline'); });
+}
 
 // Register all event listeners once
 setupInteractions();

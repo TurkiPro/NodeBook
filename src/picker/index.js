@@ -6,6 +6,17 @@ import { pickerRoot } from '../dom.js';
 import { showConfirm } from '../utils/dialog.js';
 import { buildPickerUI } from './ui.js';
 import { signOut } from '../auth/session.js';
+import { showToast } from '../utils/toast.js';
+
+/**
+ * Every picker action writes to the server, and each one used to fail into
+ * console.error — a rename or delete would appear to work, then quietly revert
+ * on the next refresh. Report it instead.
+ */
+function reportFailure(action, err) {
+  console.error(`[picker] ${action} failed:`, err);
+  showToast(err?.status === 0 ? `Can't ${action} — ${err.message}` : `Could not ${action}`);
+}
 
 let currentUser     = null;
 let onSelectGraph   = null;
@@ -52,9 +63,9 @@ async function refreshPicker() {
       onCreate:         (folderId)    => handleCreate(folderId),
       onCreateInFolder: (folderId)    => handleCreate(folderId),
       onDelete:         (ids)         => handleDelete(ids),
-      onRename:         (id, title)   => renameGraph(id, title).catch(console.error),
+      onRename:         (id, title)   => renameGraph(id, title).catch(e => reportFailure('rename that graph', e)),
       onCreateFolder:   (name)        => handleCreateFolder(name),
-      onRenameFolder:   (id, name)    => renameFolder(id, name).catch(console.error),
+      onRenameFolder:   (id, name)    => renameFolder(id, name).catch(e => reportFailure('rename that folder', e)),
       onDeleteFolder:   (id)          => handleDeleteFolder(id),
       onMoveToFolder:   (ids, folder) => handleMoveToFolder(ids, folder),
       onSignOut:        ()            => signOut(),
@@ -67,7 +78,7 @@ async function handleCreate(folderId = null) {
     const id = await createGraph(currentUser.id, 'Untitled', folderId);
     onSelectGraph?.(id, true);
   } catch (e) {
-    console.error(e);
+    reportFailure('create a graph', e);
   }
 }
 
@@ -82,7 +93,7 @@ async function handleDelete(ids) {
     await deleteGraphs(ids);
     await refreshPicker();
   } catch (e) {
-    console.error(e);
+    reportFailure(count === 1 ? 'delete that graph' : 'delete those graphs', e);
   }
 }
 
@@ -91,7 +102,7 @@ async function handleCreateFolder(name) {
     await createFolder(currentUser.id, name);
     await refreshPicker();
   } catch (e) {
-    console.error(e);
+    reportFailure('create that folder', e);
   }
 }
 
@@ -106,7 +117,7 @@ async function handleDeleteFolder(id) {
     await deleteFolder(id);
     await refreshPicker();
   } catch (e) {
-    console.error(e);
+    reportFailure('delete that folder', e);
   }
 }
 
@@ -115,6 +126,6 @@ async function handleMoveToFolder(ids, folderId) {
     await moveGraphsToFolder(ids, folderId);
     await refreshPicker();
   } catch (e) {
-    console.error(e);
+    reportFailure('move those graphs', e);
   }
 }

@@ -47,11 +47,22 @@ function applyUserUI(user) {
 
 // ── Open a specific graph from picker ───────────────────────────────────────
 async function openGraph(graphId, isNew = false) {
+  let graphData;
+  try {
+    graphData = await fetchGraphById(graphId);
+  } catch (e) {
+    // Could not confirm what is on the server. Opening the canvas anyway would
+    // show a blank graph and the first autosave would overwrite the real one,
+    // so stay on the picker instead.
+    console.error('[openGraph] load failed:', e);
+    showToast(e.status === 0 ? e.message : 'Could not open that graph — try again');
+    return;
+  }
+
   hidePicker();
   showCanvas();
   setSyncStatus('synced');
 
-  const graphData = await fetchGraphById(graphId);
   if (graphData) {
     resetState(graphData);
     render();

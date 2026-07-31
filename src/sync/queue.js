@@ -15,15 +15,23 @@ export function markDirty() {
   _timer = setTimeout(flush, 1500);
 }
 
+/**
+ * The flush callback returns:
+ *   true    — saved; clear the dirty flag
+ *   'fatal' — refused for a reason retrying cannot fix (expired session, payload
+ *             too large, malformed graph). Keep the local copy, stop retrying,
+ *             and leave the UI showing an error. Hammering the server every 30 s
+ *             forever helped nobody and hid the problem behind "Saving…".
+ *   false   — transient (offline, 5xx); retry on a timer
+ */
 export async function flush() {
   clearTimeout(_retryTimer);
   if (!_flushFn) return;
   try {
-    const pushed = await _flushFn();
-    if (pushed !== false) {
+    const result = await _flushFn();
+    if (result === true) {
       localStorage.removeItem(PENDING_KEY);
-    } else if (hasPending()) {
-      // Push failed (e.g. Supabase project paused) — retry in 30 s automatically
+    } else if (result !== 'fatal' && hasPending()) {
       _retryTimer = setTimeout(flush, 30_000);
     }
   } catch {

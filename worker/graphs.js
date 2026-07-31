@@ -6,15 +6,31 @@ import { broadcast } from './realtime.js';
 const EMPTY_GRAPH = '{"nodes":{},"edges":[],"view":{"tx":0,"ty":0,"scale":1}}';
 const now = () => new Date().toISOString();
 
+// D1 caps how large a single value may be; refusing a too-large graph with a
+// clear 413 beats a raw D1 error surfacing as a 500 the client retries forever.
+const MAX_GRAPH_BYTES = 900_000;
+
+const fail = (status, error, message) =>
+  Response.json({ error, message }, { status });
+
 /** Rows go out shaped exactly like the old Supabase select, so the picker is unchanged. */
 function rowToGraph(row) {
+  let data;
+  try {
+    data = JSON.parse(row.data);
+  } catch {
+    // A corrupt row must not take the whole picker down with a 500 — the list
+    // endpoint parses every graph the user owns, so one bad row would hide all.
+    console.error('unparseable graph data', row.id);
+    data = { nodes: {}, edges: [], view: { tx: 0, ty: 0, scale: 1 }, corrupt: true };
+  }
   return {
     id:         row.id,
     title:      row.title,
     folder_id:  row.folder_id,
     version:    row.version,
     updated_at: row.updated_at,
-    data:       JSON.parse(row.data),
+    data,
   };
 }
 
@@ -39,7 +55,7 @@ export async function getGraph(env, user, id) {
   const row = await env.DB.prepare(
     'SELECT id, title, folder_id, version, updated_at, data FROM graphs WHERE id = ? AND user_id = ?'
   ).bind(id, user.id).first();
-  if (!row) return new Response('not found', { status: 404 });
+  if (!row) return fail(404, 'not_found', 'That graph no longer exists.');
   return Response.json(rowToGraph(row));
 }
 
@@ -48,14 +64,28 @@ export async function getGraph(env, user, id) {
  * devices can never mint the same number the way the old client-side +1 could.
  */
 export async function putGraph(env, user, id, body, cid) {
-  const data = JSON.stringify(body.data ?? {});
+  // `body.data ?? {}` used to be the fallback here, which meant a truncated or
+  // malformed request body silently replaced a whole graph with an empty one.
+  // A save that cannot be trusted must be refused, not guessed at.
+  const graph = body.data;
+  if (!graph || typeof graph !== 'object' || Array.isArray(graph) ||
+      typeof graph.nodes !== 'object' || graph.nodes === null) {
+    return fail(400, 'invalid_graph', 'Graph payload was missing or malformed.');
+  }
+
+  const data = JSON.stringify(graph);
+  if (data.length > MAX_GRAPH_BYTES) {
+    return fail(413, 'graph_too_large',
+      `This graph is ${Math.round(data.length / 1000)} KB — the limit is ${MAX_GRAPH_BYTES / 1000} KB.`);
+  }
+
   const res = await env.DB.prepare(
     `UPDATE graphs SET data = ?, title = ?, version = version + 1, updated_at = ?
       WHERE id = ? AND user_id = ?
       RETURNING version`
   ).bind(data, body.title || 'Untitled', now(), id, user.id).first();
 
-  if (!res) return new Response('not found', { status: 404 });
+  if (!res) return fail(404, 'not_found', 'That graph no longer exists.');
 
   await broadcast(env, id, { data: body.data ?? {}, version: res.version }, cid);
   return Response.json({ version: res.version });

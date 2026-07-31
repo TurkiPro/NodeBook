@@ -17,8 +17,16 @@ const json = (body, status = 200, headers = {}) =>
 // `tag` is what src/auth/ui.js switches on to pick its inline error copy.
 const fail = (status, tag, message) => json({ error: tag, message }, status);
 
+/**
+ * @returns the parsed body, {} for an empty body, or null when the body is
+ * present but unparseable. Returning {} for malformed JSON (the old behaviour)
+ * let a truncated request reach handlers dressed as a valid empty object.
+ */
 async function readJson(request) {
-  try { return await request.json(); } catch { return {}; }
+  let text;
+  try { text = await request.text(); } catch { return null; }
+  if (!text) return {};
+  try { return JSON.parse(text); } catch { return null; }
 }
 
 export default {
@@ -39,9 +47,18 @@ async function route(request, env, url) {
   const path   = url.pathname.replace(/^\/api/, '');
   const method = request.method;
 
+  // Read the body once, up front — request.text() cannot be called twice, and a
+  // body that is present but unparseable is rejected here rather than being
+  // handed to a route as an innocent-looking {}.
+  let body = {};
+  if (method !== 'GET' && method !== 'DELETE') {
+    body = await readJson(request);
+    if (body === null) return fail(400, 'invalid_json', 'Request body was not valid JSON.');
+  }
+
   // ── Auth (unauthenticated) ───────────────────────────────────────────────
   if (path === '/auth/signup' && method === 'POST') {
-    const { email, authKey } = await readJson(request);
+    const { email, authKey } = body;
     const addr = String(email || '').trim().toLowerCase();
     const key  = parseAuthKey(authKey);
 
@@ -65,7 +82,7 @@ async function route(request, env, url) {
   }
 
   if (path === '/auth/signin' && method === 'POST') {
-    const { email, authKey } = await readJson(request);
+    const { email, authKey } = body;
     const addr = String(email || '').trim().toLowerCase();
     const key  = parseAuthKey(authKey);
     if (!key) return fail(400, 'bad_auth_key', 'Malformed credentials.');
@@ -103,8 +120,7 @@ async function route(request, env, url) {
   }
   if (!user) return fail(401, 'no_session', 'Not signed in.');
 
-  const body = method === 'GET' ? {} : await readJson(request);
-  const cid  = url.searchParams.get('cid') || request.headers.get('X-Client-Id') || null;
+  const cid = url.searchParams.get('cid') || request.headers.get('X-Client-Id') || null;
 
   // ── Graphs ───────────────────────────────────────────────────────────────
   if (path === '/graphs' && method === 'GET')  return G.listGraphs(env, user);
