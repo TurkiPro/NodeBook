@@ -11,7 +11,7 @@ import { render } from './canvas/render.js';
 import { loadLocal, save, onSave } from './sync/storage.js';
 import { markDirty, onFlush, flush, cancelRetry } from './sync/queue.js';
 import { pushGraph } from './sync/cloud.js';
-import { supabase } from './sync/client.js';
+import { cloudEnabled } from './sync/client.js';
 import { setupInteractions } from './canvas/interactions.js';
 import { setupKeyboard } from './canvas/keyboard.js';
 import { setupPanelButtons, addNode } from './canvas/operations.js';
@@ -33,7 +33,7 @@ setupPanelButtons();
 setupExport();
 btnBack.addEventListener('click', backToPicker);
 
-if (supabase) {
+if (cloudEnabled) {
   // Full mode: auth required, cloud sync enabled
   initAuth().catch(console.error);
 } else {

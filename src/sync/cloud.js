@@ -1,194 +1,153 @@
-import { supabase } from './client.js';
+import { api, socketUrl, cloudEnabled } from './client.js';
 import { state, getCleanData } from '../canvas/state.js';
 import { setSyncStatus } from '../utils/sync-status.js';
 import { saveLocal } from './storage.js';
 
-let subscription = null;
-
 // ── Graph list / CRUD ──────────────────────────────────────────────────────
+// Signatures keep their userId parameter for call-site compatibility; the Worker
+// scopes every query to the session cookie, so it is no longer sent.
 
-export async function listGraphs(userId) {
-  if (!supabase) return [];
-
-  // Attempt 1: full schema with folder_id (migration 003 applied)
-  const { data: d1, error: e1 } = await supabase
-    .from('graphs')
-    .select('id, title, folder_id, version, updated_at, data')
-    .eq('user_id', userId)
-    .order('updated_at', { ascending: false });
-  if (!e1) return d1 || [];
-
-  // Attempt 2: without folder_id (migration 003 not yet applied)
-  const { data: d2, error: e2 } = await supabase
-    .from('graphs')
-    .select('id, title, version, updated_at, data')
-    .eq('user_id', userId)
-    .order('updated_at', { ascending: false });
-  if (!e2) return (d2 || []).map(g => ({ ...g, folder_id: null }));
-
-  // Attempt 3: minimal — covers any older schema variant
-  const { data: d3, error: e3 } = await supabase
-    .from('graphs')
-    .select('id, version, updated_at, data')
-    .eq('user_id', userId)
-    .order('updated_at', { ascending: false });
-  if (!e3) return (d3 || []).map(g => ({ ...g, folder_id: null, title: 'My Graph' }));
-
-  throw e3;
+export async function listGraphs(_userId) {
+  if (!cloudEnabled) return [];
+  return api('/graphs');
 }
 
 export async function fetchGraphById(graphId) {
-  if (!supabase) return null;
-  const { data, error } = await supabase
-    .from('graphs')
-    .select('*')
-    .eq('id', graphId)
-    .single();
-  if (error || !data) return null;
-  return { ...data.data, graphId: data.id, graphTitle: data.title, version: data.version };
+  if (!cloudEnabled) return null;
+  try {
+    const g = await api(`/graphs/${graphId}`);
+    return { ...g.data, graphId: g.id, graphTitle: g.title, version: g.version };
+  } catch {
+    return null;
+  }
 }
 
-export async function createGraph(userId, title = 'Untitled', folderId = null) {
-  const { data, error } = await supabase
-    .from('graphs')
-    .insert({
-      user_id:   userId,
-      title,
-      folder_id: folderId || null,
-      data:      { nodes: {}, edges: [], view: { tx: 0, ty: 0, scale: 1 } },
-      version:   1,
-    })
-    .select('id')
-    .single();
-  if (error) throw error;
-  return data.id;
+export async function createGraph(_userId, title = 'Untitled', folderId = null) {
+  const { id } = await api('/graphs', { method: 'POST', body: { title, folderId } });
+  return id;
 }
 
 export async function renameGraph(id, title) {
-  const { error } = await supabase.from('graphs').update({ title }).eq('id', id);
-  if (error) throw error;
+  await api(`/graphs/${id}`, { method: 'PATCH', body: { title } });
 }
 
 export async function deleteGraphs(ids) {
-  const { error } = await supabase.from('graphs').delete().in('id', ids);
-  if (error) throw error;
+  await api('/graphs/delete', { method: 'POST', body: { ids } });
 }
 
 // ── Folder CRUD ────────────────────────────────────────────────────────────
 
-export async function listFolders(userId) {
-  if (!supabase) return [];
-  const { data, error } = await supabase
-    .from('folders')
-    .select('id, name, created_at')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true });
-  if (error) return []; // folders table may not exist yet (migration 003 not run)
-  return data || [];
+export async function listFolders(_userId) {
+  if (!cloudEnabled) return [];
+  try {
+    return await api('/folders');
+  } catch {
+    return [];
+  }
 }
 
-export async function createFolder(userId, name = 'New Folder') {
-  const { data, error } = await supabase
-    .from('folders')
-    .insert({ user_id: userId, name })
-    .select('id')
-    .single();
-  if (error) throw error;
-  return data.id;
+export async function createFolder(_userId, name = 'New Folder') {
+  const { id } = await api('/folders', { method: 'POST', body: { name } });
+  return id;
 }
 
 export async function renameFolder(id, name) {
-  const { error } = await supabase.from('folders').update({ name }).eq('id', id);
-  if (error) throw error;
+  await api(`/folders/${id}`, { method: 'PATCH', body: { name } });
 }
 
 export async function deleteFolder(id) {
-  const { error } = await supabase.from('folders').delete().eq('id', id);
-  if (error) throw error;
+  await api(`/folders/${id}`, { method: 'DELETE' });
 }
 
 export async function moveGraphsToFolder(ids, folderId) {
-  const { error } = await supabase
-    .from('graphs')
-    .update({ folder_id: folderId || null })
-    .in('id', ids);
-  if (error) throw error;
+  await api('/graphs/move', { method: 'POST', body: { ids, folderId } });
 }
 
 // ── Active graph sync ──────────────────────────────────────────────────────
 
 export async function pushGraph() {
-  if (!supabase) return false;
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return false;
-
-  const userId    = session.user.id;
-  const graphData = getCleanData();
+  if (!cloudEnabled) return false;
 
   try {
     if (state.graphId) {
-      const { data: rows, error } = await supabase
-        .from('graphs')
-        .update({
-          data:       graphData,
-          title:      state.graphTitle || 'Untitled',
-          version:    (state.version || 0) + 1,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', state.graphId)
-        .eq('user_id', userId)
-        .select('id');
-
-      if (!error && rows && rows.length > 0) {
-        state.version = (state.version || 0) + 1;
-        saveLocal();
-        setSyncStatus('synced');
-        return true;
-      }
-      state.graphId = null;
+      // The server owns the version counter and returns the new value.
+      const { version } = await api(`/graphs/${state.graphId}`, {
+        method: 'PUT',
+        body: { data: getCleanData(), title: state.graphTitle || 'Untitled' },
+      });
+      state.version = version;
+      saveLocal();
+      setSyncStatus('synced');
+      return true;
     }
 
-    // INSERT (fallback — should rarely happen since picker always creates the row first)
-    const { data, error } = await supabase
-      .from('graphs')
-      .insert({
-        user_id: userId,
-        title:   state.graphTitle || 'Untitled',
-        data:    graphData,
-        version: 1,
-      })
-      .select()
-      .single();
-    if (error) throw error;
-    state.graphId = data.id;
-    state.version = 1;
+    // Fallback — the picker normally creates the row before the canvas opens.
+    const id = await createGraph(null, state.graphTitle || 'Untitled');
+    state.graphId = id;
+    const { version } = await api(`/graphs/${id}`, {
+      method: 'PUT',
+      body: { data: getCleanData(), title: state.graphTitle || 'Untitled' },
+    });
+    state.version = version;
     saveLocal();
     setSyncStatus('synced');
     return true;
-  } catch {
+  } catch (e) {
+    if (e.status === 404) state.graphId = null;   // row deleted elsewhere
     if (!navigator.onLine) setSyncStatus('offline');
     return false;
   }
 }
 
+// ── Realtime (Durable Object room, replaces postgres_changes) ───────────────
+
+let socket      = null;
+let keepalive   = null;
+let retryTimer  = null;
+let retryDelay  = 1000;
+let closing     = false;
+
 export function subscribeToGraph(graphId, onUpdate) {
-  if (!supabase || subscription) return;
-  subscription = supabase
-    .channel(`graph-${graphId}`)
-    .on('postgres_changes', {
-      event:  'UPDATE',
-      schema: 'public',
-      table:  'graphs',
-      filter: `id=eq.${graphId}`,
-    }, (payload) => {
-      onUpdate({ ...payload.new.data, version: payload.new.version });
-    })
-    .subscribe();
+  if (!cloudEnabled || socket) return;
+  closing = false;
+  connect(graphId, onUpdate);
+}
+
+function connect(graphId, onUpdate) {
+  socket = new WebSocket(socketUrl(graphId));
+
+  socket.addEventListener('open', () => {
+    retryDelay = 1000;
+    // Cloudflare drops idle sockets; a cheap ping keeps the room warm.
+    clearInterval(keepalive);
+    keepalive = setInterval(() => {
+      if (socket?.readyState === WebSocket.OPEN) socket.send('ping');
+    }, 25_000);
+  });
+
+  socket.addEventListener('message', (e) => {
+    if (e.data === 'pong') return;
+    try {
+      const msg = JSON.parse(e.data);
+      onUpdate({ ...msg.data, version: msg.version });
+    } catch { /* ignore malformed frame */ }
+  });
+
+  socket.addEventListener('close', () => {
+    clearInterval(keepalive);
+    socket = null;
+    if (closing) return;
+    // Exponential backoff to 30 s — covers sleep/wake and flaky networks.
+    retryTimer = setTimeout(() => connect(graphId, onUpdate), retryDelay);
+    retryDelay = Math.min(retryDelay * 2, 30_000);
+  });
+
+  socket.addEventListener('error', () => socket?.close());
 }
 
 export function unsubscribeFromGraph() {
-  if (subscription && supabase) {
-    supabase.removeChannel(subscription);
-    subscription = null;
-  }
+  closing = true;
+  clearTimeout(retryTimer);
+  clearInterval(keepalive);
+  if (socket) { socket.close(); socket = null; }
 }

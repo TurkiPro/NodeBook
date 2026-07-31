@@ -1,0 +1,27 @@
+name = "nodebook"
+main = "worker/index.js"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Serves the Vite build. `single-page-application` replaces the rewrite rule
+# vercel.json used to provide: any non-asset path falls back to index.html.
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nodebook"
+database_id = "33abd145-748b-49c8-8ba3-d4c61360891d"
+migrations_dir = "migrations"
+
+# One room per graph, for live cross-device sync.
+[[durable_objects.bindings]]
+name = "GRAPH_ROOM"
+class_name = "GraphRoom"
+
+# SQLite-backed Durable Objects — required on the Workers free plan.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GraphRoom"]

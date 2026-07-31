@@ -2,7 +2,7 @@
 
 A visual note-taking app built around nodes and connections. Create nodes, write in them, link them together, and your graph syncs across all your devices in real time.
 
-![Nodebook](https://img.shields.io/badge/status-prototype-orange) ![Vite](https://img.shields.io/badge/built_with-Vite-646CFF) ![Supabase](https://img.shields.io/badge/backend-Supabase-3ECF8E)
+![Nodebook](https://img.shields.io/badge/status-prototype-orange) ![Vite](https://img.shields.io/badge/built_with-Vite-646CFF) ![Cloudflare](https://img.shields.io/badge/backend-Cloudflare_Workers-F38020)
 
 ---
 
@@ -23,10 +23,11 @@ A visual note-taking app built around nodes and connections. Create nodes, write
 | Layer | Choice |
 |---|---|
 | Frontend | Vanilla JS (no framework), Vite |
-| Auth | Supabase GoTrue (email/password) |
-| Database | Supabase PostgreSQL (JSONB graph document per user) |
-| Real-time | Supabase WebSocket subscriptions |
-| Hosting | Vercel (static deploy from `dist/`) |
+| API | Cloudflare Worker (`worker/`) |
+| Auth | Email/password, PBKDF2 hashes, opaque session cookie |
+| Database | Cloudflare D1 (SQLite; JSON graph document per graph) |
+| Real-time | Durable Object per graph, WebSocket fan-out |
+| Hosting | Cloudflare Workers — one deploy serves `dist/` and `/api` |
 
 ---
 
@@ -35,7 +36,7 @@ A visual note-taking app built around nodes and connections. Create nodes, write
 ### Prerequisites
 
 - Node.js 18+
-- A [Supabase](https://supabase.com) project
+- A [Cloudflare](https://cloudflare.com) account (Workers, D1, Durable Objects)
 
 ### 1. Clone and install
 
@@ -45,19 +46,18 @@ cd nodebook
 npm install
 ```
 
-### 2. Set up Supabase
+### 2. Create the database
 
-Run the migration in your Supabase SQL Editor:
-
-```sql
--- supabase/migrations/001_initial_schema.sql
+```bash
+npx wrangler login
+npx wrangler d1 create nodebook
 ```
 
-Then enable real-time sync:
+Copy the printed `database_id` into `wrangler.toml`, then create the tables:
 
-```sql
-ALTER TABLE graphs REPLICA IDENTITY FULL;
-ALTER PUBLICATION supabase_realtime ADD TABLE graphs;
+```bash
+npm run db:migrate          # remote
+npm run db:migrate:local    # local dev copy
 ```
 
 ### 3. Configure environment variables
@@ -65,31 +65,43 @@ ALTER PUBLICATION supabase_realtime ADD TABLE graphs;
 Create `.env.local` in the project root:
 
 ```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_CLOUD=1
 ```
+
+Without it the app runs local-only — no account, everything in `localStorage`.
+There are no secrets on the client: auth is a same-origin HttpOnly cookie.
 
 ### 4. Run locally
 
 ```bash
-npm run dev
+npm run dev:cloud
 ```
 
-Open `http://localhost:5173`. Create an account and start building your graph.
+Open `http://localhost:8788`. Create an account and start building your graph.
+For client work with hot reload, see
+[.claude/skills/run-nodebook/SKILL.md](.claude/skills/run-nodebook/SKILL.md).
 
-### 5. Build for production
+### 5. Deploy
 
 ```bash
-npm run build
+npm run deploy              # vite build && wrangler deploy
 ```
 
-Output goes to `dist/`. Deploy to Vercel, Netlify, or any static host.
+One Worker serves the built assets and the API.
 
 ---
 
 ## Project structure
 
 ```
+worker/
+├── index.js                # Router: /api/* here, everything else → static assets
+├── auth.js                 # PBKDF2 hashing, session cookies
+├── graphs.js               # Graph + folder CRUD, all scoped by user_id
+└── realtime.js             # GraphRoom Durable Object — WebSocket fan-out
+
+migrations/                 # D1 schema
+
 src/
 ├── main.js                 # Bootstrap: auth check → canvas or auth screen
 ├── dom.js                  # Shared DOM element references
@@ -100,13 +112,13 @@ src/
 │   ├── operations.js       # addNode, deleteNode, selectNode
 │   └── keyboard.js         # Keyboard shortcuts
 ├── sync/
-│   ├── client.js           # Supabase singleton
+│   ├── client.js           # fetch wrapper for the Worker API + socket URL
 │   ├── storage.js          # localStorage read/write (offline cache)
-│   ├── cloud.js            # fetchGraph, pushGraph, real-time subscription
+│   ├── cloud.js            # fetchGraph, pushGraph, realtime WebSocket
 │   ├── queue.js            # Dirty flag, debounced flush, offline retry
 │   └── merge.js            # Version-fenced last-write-wins merge
 ├── auth/
-│   ├── index.js            # onAuthStateChange → show canvas or auth form
+│   ├── index.js            # Session probe → show canvas or auth form
 │   ├── ui.js               # Login/signup form (vanilla JS)
 │   ├── session.js          # signIn, signUp, signOut
 │   └── pong.js             # Pong background animation on the auth screen
@@ -145,18 +157,24 @@ src/
 ## Sync architecture
 
 ```
-In-memory state  →  localStorage (300 ms debounce)  →  Supabase JSONB (1.5 s debounce)
-                                                              ↕ real-time WebSocket
+In-memory state  →  localStorage (300 ms debounce)  →  D1 via PUT /api/graphs/:id (1.5 s debounce)
+                                                              ↓
+                                                        GraphRoom Durable Object
+                                                              ↓ WebSocket
                                                          other tabs / devices
 ```
+
+D1 is the source of truth: the Worker writes the row first, increments `version`
+server-side, then asks the graph's Durable Object to fan the new revision out to
+every other connected socket.
 
 Conflict resolution is last-write-wins with version fencing: the higher `version` number wins. When the remote graph wins, a toast notifies the user. Offline writes queue in localStorage and flush automatically on reconnect.
 
 ---
 
-## Running without Supabase
+## Running without the cloud
 
-If `VITE_SUPABASE_URL` is not set, the app runs in local-only mode — no account required, everything stored in `localStorage`. Useful for self-hosted or air-gapped setups.
+If `VITE_CLOUD` is not set to `1`, the app runs in local-only mode — no account required, everything stored in `localStorage`, no Worker needed. Useful for self-hosted or air-gapped setups.
 
 ---
 

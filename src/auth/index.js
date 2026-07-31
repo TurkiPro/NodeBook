@@ -1,6 +1,5 @@
-import { supabase } from '../sync/client.js';
 import { showAuthForm, hideAuthForm } from './ui.js';
-import { signOut } from './session.js';
+import { signOut, onAuthChange, getSessionUser } from './session.js';
 import { showConfirm } from '../utils/dialog.js';
 import { cancelPendingSave } from '../sync/storage.js';
 import { fetchGraphById, unsubscribeFromGraph, subscribeToGraph } from '../sync/cloud.js';
@@ -95,33 +94,13 @@ export async function initAuth() {
   // Immediately hide canvas until we know the user is logged in AND has chosen a graph
   hideCanvas();
 
-  let initialSession = null;
-  try {
-    const timeout = new Promise(resolve =>
-      setTimeout(() => resolve({ data: { session: null } }), 1500)
-    );
-    const result = await Promise.race([supabase.auth.getSession(), timeout]);
-    initialSession = result.data?.session ?? null;
-  } catch {
-    initialSession = null;
-  }
-
-  if (initialSession) {
-    initialized = true;
-    applyUserUI(initialSession.user);
-    await onLoggedIn(initialSession.user);
-  } else {
-    showAuthForm();
-  }
-
-  supabase.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'INITIAL_SESSION') return;
-
-    if (session) {
+  // Fired by session.js after a successful sign-in / sign-up.
+  onAuthChange(async (user) => {
+    if (user) {
       if (initialized) return;
       initialized = true;
-      applyUserUI(session.user);
-      await onLoggedIn(session.user);
+      applyUserUI(user);
+      await onLoggedIn(user);
     } else {
       initialized = false;
       currentUser = null;
@@ -136,4 +115,13 @@ export async function initAuth() {
       btnUser.style.display = 'none';
     }
   });
+
+  const user = await getSessionUser();
+  if (user) {
+    initialized = true;
+    applyUserUI(user);
+    await onLoggedIn(user);
+  } else {
+    showAuthForm();
+  }
 }

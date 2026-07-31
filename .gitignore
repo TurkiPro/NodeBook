@@ -1,7 +1,10 @@
 node_modules/
 dist/
+.wrangler/
+import.sql
 .env.local
 .env.*.local
 *.log
 .DS_Store
 Thumbs.db
+.claude
